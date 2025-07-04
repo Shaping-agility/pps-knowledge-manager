@@ -5,7 +5,7 @@ Base storage classes and interfaces.
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 from pathlib import Path
-from .chunking import Chunk
+from ..chunking.base import Chunk
 
 
 class StorageBackend(ABC):
@@ -65,7 +65,7 @@ class GraphStorage(StorageBackend):
         from_node: str,
         to_node: str,
         relationship_type: str,
-        properties: Dict[str, Any] = None,
+        properties: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Create a relationship between nodes."""
         pass

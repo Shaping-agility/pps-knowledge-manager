@@ -10,6 +10,7 @@ from src.pps_knowledge_manager.config import ConfigManager
 from src.pps_knowledge_manager.core.knowledge_manager import KnowledgeManager
 from src.pps_knowledge_manager.chunking.base import Chunk, ChunkingStrategy
 from src.pps_knowledge_manager.storage.base import StorageBackend
+from src.pps_knowledge_manager.triggers.base import Trigger
 
 
 class TestChunkingStrategy(ChunkingStrategy):
@@ -50,17 +51,17 @@ class TestStorageBackend(StorageBackend):
         return True
 
 
-class TestTrigger:
+class TestTrigger(Trigger):
     """Test implementation of trigger."""
 
     def __init__(self, config: dict):
-        self.config = config
+        super().__init__(config)
         self.running = False
 
-    def start(self):
+    def start(self) -> None:
         self.running = True
 
-    def stop(self):
+    def stop(self) -> None:
         self.running = False
 
     def is_running(self) -> bool:
