@@ -3,16 +3,18 @@ Test Supabase connection and basic operations.
 """
 
 import pytest
-from unittest.mock import Mock, patch
+from src.pps_knowledge_manager.utils.supabase_client import (
+    get_supabase_client,
+    supabase_health_check,
+)
 
 
 def test_supabase_connection():
-    """Test that we can connect to Supabase."""
-    # This is a placeholder test - we'll implement actual Supabase connection later
-    assert True
+    """Test that we can connect to Supabase and get a client instance."""
+    client = get_supabase_client()
+    assert client is not None
 
 
 def test_supabase_health_check():
     """Test Supabase health check."""
-    # This is a placeholder test - we'll implement actual health check later
-    assert True
+    assert supabase_health_check() is True

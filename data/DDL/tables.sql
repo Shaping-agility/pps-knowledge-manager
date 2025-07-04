@@ -1,0 +1,1 @@
+CREATE TABLE health_test (id int)
