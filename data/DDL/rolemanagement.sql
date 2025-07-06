@@ -1,4 +1,4 @@
-ALTER ROLE anon with LOGIN;
-ALTER ROLE service_role WITH LOGIN CREATEDB CREATEROLE;
-GRANT USAGE ON SCHEMA public TO service_role;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO service_role;
+-- For local Supabase development, roles are already configured
+-- Skip role management as anon and service_role are reserved roles
+-- GRANT USAGE ON SCHEMA public TO service_role;
+-- GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO service_role;

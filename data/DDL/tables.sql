@@ -1,1 +1,1 @@
-CREATE TABLE health_test (id int)
+CREATE TABLE health_test (id int);

@@ -10,7 +10,7 @@ from pathlib import Path
 class ConfigManager:
     """Manages configuration for the knowledge manager."""
 
-    def __init__(self, config_path: Path = None):
+    def __init__(self, config_path: Path | None = None):
         self.config_path = config_path or Path("config/knowledge_manager.yaml")
         self.config = self._load_config()
 
@@ -28,6 +28,7 @@ class ConfigManager:
                 "supabase": {
                     "url": "http://localhost:54321",
                     "key": "your-supabase-key",
+                    "database_name": "postgres",
                     "enabled": True,
                 },
                 "neo4j": {
