@@ -31,34 +31,26 @@ class LangChainSentenceSplitter(ChunkingStrategy):
         # Convert to Chunk objects
         chunks = []
         for i, chunk_text in enumerate(text_chunks):
-            # Create clean chunk metadata without duplicating parent fields
-            chunk_metadata = {
-                "chunk_index": i,
-                "chunk_type": "langchain_sentence",
-                "chunk_processed_at": datetime.now().isoformat(),
-                "chunk_size": len(chunk_text),
-            }
-
-            # Add parent metadata fields that are relevant to chunks
+            # Start with a copy of the parent metadata
+            chunk_metadata = dict(metadata)
+            # Add chunk-specific fields
             chunk_metadata.update(
                 {
-                    "filename": metadata.get("filename"),
-                    "source_path": metadata.get("file_path"),
-                    "file_type": metadata.get("file_type"),
-                    "chunking_strategy": metadata.get("chunking_strategy"),
+                    "chunk_index": i,
+                    "chunk_type": "langchain_sentence",
+                    "chunk_processed_at": datetime.now().isoformat(),
+                    "chunk_size": len(chunk_text),
                 }
             )
-
             chunk = Chunk(
                 content=chunk_text,
                 metadata=chunk_metadata,
-                source_path=Path(metadata.get("source_path", "")),
+                source_path=Path(metadata.get("file_path", "")),
                 chunk_id=None,  # Let DB generate UUID
                 start_position=content.find(chunk_text),
                 end_position=content.find(chunk_text) + len(chunk_text),
             )
             chunks.append(chunk)
-
         return chunks
 
     def get_strategy_name(self) -> str:

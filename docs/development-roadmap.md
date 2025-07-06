@@ -55,10 +55,12 @@ This roadmap outlines the iterative development approach for the PPS Knowledge M
    - Test basic vector search functionality
 
 ### Success Criteria
-- [ ] Can ingest text files and generate chunks using LangChain splitters
-- [ ] Chunks stored in Supabase with metadata
-- [ ] Basic vector search returns relevant results
-- [ ] Sample ideation session fully processed
+- [x] Can ingest text files and generate chunks using LangChain splitters
+- [x] Chunks stored in Supabase with metadata
+- [x] Basic vector search returns relevant results
+- [x] Sample ideation session fully processed
+- [x] Tests are self-contained, do not reset the database per test, and only assert what they are responsible for
+- [x] Metadata conventions are flat, canonical, and consistent across ingestion and chunking
 
 ### Learning Goals
 - Understand LangChain text splitting capabilities and configuration
@@ -184,22 +186,9 @@ This roadmap outlines the iterative development approach for the PPS Knowledge M
 ## Architecture Decisions & Patterns
 
 ### Test State Management
-- **Approach**: Script-based reset using `dropEntities.sql`
-- **Benefits**: Simple, explicit, easy to extend
-- **Pattern**: Add DROP statements to `dropEntities.sql` for new test entities
+- **Approach**: Script-based reset using `dropEntities.sql` (run once per test cycle, not per test)
+- **Benefits**: Simple, explicit, easy to extend, and high performance
+- **Pattern**: Add DROP statements to `dropEntities.sql` for new test entities; tests should not assume a clean DB state except at the start of the cycle
 
 ### Database Architecture
-- **Approach**: Single database with `public` schema
-- **Benefits**: Simpler, more compatible with Supabase API
-- **Pattern**: All operations use default database, no schema switching
-
-### Connection Management
-- **Approach**: Stateless connections with context managers
-- **Benefits**: Prevents resource leaks, avoids import-time blocking
-- **Pattern**: Use `SupabaseConnection` context manager for all operations
-
-## Notes
-- Each iteration should be completed before moving to the next
-- Learning from each iteration should inform solution intent updates
-- Focus on test-driven development throughout
-- Document patterns for client reuse 
+- **Approach**: Single database with `

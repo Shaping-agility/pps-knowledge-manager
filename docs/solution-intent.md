@@ -79,6 +79,7 @@ registration:
 ### Simplified Test Architecture
 - **Single Database Approach**: All operations use the default Supabase database and `public` schema
 - **Script-Based Reset**: Test state management through `dropEntities.sql` script
+- **Test Data Manager Reset Policy**: The reset operation is intended to be run once at the start of a test cycle, not by individual tests. Tests should be self-contained and not assume a clean database state beyond the initial reset.
 - **Clean Separation**: Test data management separated from production logic
 - **Stateless Connections**: Supabase connections created and closed per operation
 - **Tests as Triggers**: Python tests serve as the primary trigger mechanism during development
@@ -110,6 +111,11 @@ DROP EXTENSION IF EXISTS vector;
 - DDL scripts can use both full-line and inline comments (`-- comment`)
 - Multi-line SQL statements are supported
 - Test data manager parses and executes statements robustly, ensuring reliable test cycles
+
+## Metadata Handling & Chunking Patterns
+- **Canonical Metadata Structure**: All ingestion and chunking operations use a flat, consistent metadata structure (e.g., `file_path`, `filename`, `file_type`, `processed_at`, `chunking_strategy`).
+- **No Nested or Remapped Fields**: Chunking strategies extend the parent metadata with chunk-specific fields (e.g., `chunk_index`, `chunk_type`, `chunk_processed_at`, `chunk_size`) but do not introduce new field names or nested metadata.
+- **Test Patterns**: Tests are written to be self-contained, assert only what they are responsible for, and do not make unnecessary assumptions about global database state.
 
 ## Production-Ready Architecture Patterns
 
