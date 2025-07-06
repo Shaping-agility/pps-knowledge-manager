@@ -10,6 +10,7 @@ from typing import List, Optional
 from dotenv import load_dotenv
 from ..core.knowledge_manager import KnowledgeManager
 
+
 # Load environment variables
 load_dotenv()
 
@@ -50,6 +51,7 @@ class SupabaseTestDataManager:
         self, database: str = "postgres"
     ) -> psycopg2.extensions.connection:
         try:
+            # Use the configured user and password
             conn = psycopg2.connect(
                 host=self.host,
                 port=self.port,
@@ -77,6 +79,9 @@ class SupabaseTestDataManager:
             if not self.smoke_test():
                 print("Smoke test failed after reset")
                 return False
+            if not self.smoke_test_tables_exist():
+                print("Table existence smoke test failed after reset")
+                return False
             print(f"Database reset completed successfully")
             return True
         except Exception as e:
@@ -84,6 +89,7 @@ class SupabaseTestDataManager:
             return False
 
     def execute_script(self, script_path: str) -> bool:
+        """Execute script using direct PostgreSQL connection (legacy method)."""
         try:
             script_file = Path(script_path)
             if not script_file.exists():
@@ -93,21 +99,41 @@ class SupabaseTestDataManager:
             with open(script_file, "r") as f:
                 script_content = f.read()
             conn = self._get_admin_connection("postgres")
-            statements = [
-                stmt.strip() for stmt in script_content.split(";") if stmt.strip()
+            # Parse SQL statements more intelligently
+            statements = []
+
+            # Remove comment lines and inline comments, normalize whitespace
+            lines = []
+            for line in script_content.split("\n"):
+                line = line.strip()
+                if line and not line.startswith("--"):
+                    # Remove inline comments (everything after --)
+                    if "--" in line:
+                        line = line.split("--")[0].strip()
+                    if line:  # Only add non-empty lines after comment removal
+                        lines.append(line)
+
+            # Join all lines and split by semicolon
+            full_content = " ".join(lines)
+            raw_statements = [
+                stmt.strip() for stmt in full_content.split(";") if stmt.strip()
             ]
+
+            # Add semicolon back to each statement
+            statements = [stmt + ";" for stmt in raw_statements]
+
             with conn.cursor() as cursor:
                 for statement in statements:
-                    if statement and not statement.startswith("--"):
-                        try:
-                            cursor.execute(statement)
-                            print(f"Executed: {statement[:50]}...")
-                        except Exception as e:
-                            print(f"Failed to execute statement: {statement}")
-                            print(f"Error: {e}")
-                            conn.rollback()
-                            conn.close()
-                            return False
+                    print(f"Processing Statement: {statement[:100]}...")
+                    try:
+                        cursor.execute(statement)
+                        print(f"Executed: {statement[:50]}...")
+                    except Exception as e:
+                        print(f"Failed to execute statement: {statement}")
+                        print(f"Error: {e}")
+                        conn.rollback()
+                        conn.close()
+                        return False
             conn.commit()
             conn.close()
             print(f"Script executed successfully: {script_path}")
@@ -145,4 +171,41 @@ class SupabaseTestDataManager:
                 return False
         except Exception as e:
             print(f"Smoke test failed with error: {e}")
+            return False
+
+    def smoke_test_tables_exist(self) -> bool:
+        """Check that required tables exist after setup."""
+        try:
+            print("Running table existence smoke test...")
+            conn = self._get_admin_connection("postgres")
+
+            # Check for required tables
+            required_tables = ["health_test", "documents", "chunks"]
+            existing_tables = []
+
+            with conn.cursor() as cursor:
+                for table in required_tables:
+                    cursor.execute(
+                        "SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name = %s)",
+                        (table,),
+                    )
+                    result = cursor.fetchone()
+                    exists = result[0] if result else False
+                    existing_tables.append((table, exists))
+                    print(f"Table {table}: {'✓' if exists else '✗'}")
+
+            conn.close()
+
+            # Check if all required tables exist
+            missing_tables = [table for table, exists in existing_tables if not exists]
+
+            if missing_tables:
+                print(f"Smoke test failed: Missing tables: {missing_tables}")
+                return False
+            else:
+                print("All required tables exist ✓")
+                return True
+
+        except Exception as e:
+            print(f"Table existence smoke test failed with error: {e}")
             return False
