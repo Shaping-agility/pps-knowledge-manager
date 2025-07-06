@@ -7,6 +7,9 @@ from src.pps_knowledge_manager.utils.supabase_client import (
     get_supabase_client,
     supabase_health_check,
 )
+from src.pps_knowledge_manager.utils.knowledge_manager_health_check import (
+    knowledge_manager_health_check,
+)
 
 
 def test_supabase_connection():
@@ -22,5 +25,10 @@ def test_supabase_connection_with_database():
 
 
 def test_supabase_health_check():
-    """Test Supabase health check."""
+    """Test Supabase health check using direct client."""
     assert supabase_health_check() is True
+
+
+def test_knowledge_manager_health_check():
+    """Test health check using KnowledgeManager's configured storage backend."""
+    assert knowledge_manager_health_check() is True

@@ -26,9 +26,9 @@ class ConfigManager:
         return {
             "storage": {
                 "supabase": {
-                    "url": "http://localhost:54321",
+                    "url": "http://localhost:8000",
                     "key": "your-supabase-key",
-                    "database_name": "postgres",
+                    "database_name": "pps_km_test",
                     "enabled": True,
                 },
                 "neo4j": {

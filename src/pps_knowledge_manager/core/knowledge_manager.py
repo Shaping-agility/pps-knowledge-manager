@@ -9,6 +9,7 @@ from ..config import ConfigManager
 from ..triggers.base import Trigger
 from ..chunking.base import ChunkingStrategy, FileTypeDetector, Chunk
 from ..storage.base import StorageBackend
+from ..storage.supabase_backend import SupabaseStorageBackend
 
 
 class KnowledgeManager:
@@ -25,8 +26,32 @@ class KnowledgeManager:
 
     def _initialize_components(self):
         """Initialize all components based on configuration."""
-        # This will be implemented as we add specific components
-        pass
+        # Initialize storage backends
+        self._initialize_storage_backends()
+
+    def _initialize_storage_backends(self):
+        """Initialize storage backends based on configuration."""
+        # Initialize Supabase backend if enabled
+        supabase_config = self.config.get("storage.supabase")
+        if supabase_config and supabase_config.get("enabled", False):
+            try:
+                # Use environment variables for credentials
+                import os
+
+                supabase_config["url"] = os.getenv(
+                    "SUPABASE_URL", supabase_config.get("url")
+                )
+                supabase_config["key"] = os.getenv(
+                    "SUPABASE_KEY", supabase_config.get("key")
+                )
+
+                supabase_backend = SupabaseStorageBackend(supabase_config)
+                self.add_storage_backend(supabase_backend)
+                print(
+                    f"Initialized Supabase storage backend for database: {supabase_config.get('database_name')}"
+                )
+            except Exception as e:
+                print(f"Failed to initialize Supabase storage backend: {e}")
 
     def add_trigger(self, trigger: Trigger) -> None:
         """Add a trigger to the system."""

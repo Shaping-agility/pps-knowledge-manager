@@ -8,6 +8,7 @@ import psycopg2
 from pathlib import Path
 from typing import List, Optional
 from dotenv import load_dotenv
+from ..core.knowledge_manager import KnowledgeManager
 
 # Load environment variables
 load_dotenv()
@@ -16,8 +17,15 @@ load_dotenv()
 class SupabaseTestDataManager:
     """Manages test database setup and teardown for Supabase."""
 
-    def __init__(self, database_name: str = "pps_km_test"):
-        self.database_name = database_name
+    def __init__(self, database_name: str | None = None):
+        # Get database name from KnowledgeManager config if not provided
+        if database_name is None:
+            km = KnowledgeManager()
+            supabase_config = km.config.get("storage.supabase")
+            self.database_name = supabase_config.get("database_name", "pps_km_test")
+        else:
+            self.database_name = database_name
+
         self.supabase_url = os.getenv("SUPABASE_URL")
         self.service_role_key = os.getenv("SUPABASE_KEY")
 
