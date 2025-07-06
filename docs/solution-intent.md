@@ -12,6 +12,7 @@ A flexible, multi-modal knowledge management system that serves as the cognitive
 6. **Client-Ready Patterns**: Build patterns that can be rapidly deployed for client solutions
 7. **Source Preservation**: Maintain references to original sources for "find relevant" queries
 8. **Batch Processing**: Optimized for batch operations with real-time capabilities where needed
+9. **Simplified Test Management**: Clean test state management using script-based reset approach
 
 ## Knowledge Types & Processing Requirements
 
@@ -29,7 +30,7 @@ A flexible, multi-modal knowledge management system that serves as the cognitive
 - Hybrid search returning source references
 
 ## Storage Configuration Approach
-The system will support declarative configuration for storage strategies:
+The system supports declarative configuration for storage strategies:
 
 ```yaml
 # Example configuration
@@ -40,7 +41,7 @@ registration:
       chunking: "lda_semantic_boundaries"
       metadata_model: "transcript_default"
       storage:
-        vector: "neo4j"
+        vector: "supabase"
         graph: "neo4j_with_pps_schema"
         auto_update: true
     pdf:
@@ -69,6 +70,27 @@ registration:
 - Graph schema extensions (PPS Schema + Person, etc.)
 - Vector embedding generation and storage
 
+## Test Infrastructure & State Management
+
+### Simplified Test Architecture
+- **Single Database Approach**: All operations use the default Supabase database and `public` schema
+- **Script-Based Reset**: Test state management through `dropEntities.sql` script
+- **Clean Separation**: Test data management separated from production logic
+- **Stateless Connections**: Supabase connections created and closed per operation
+
+### Test Data Management
+```sql
+-- data/DDL/dropEntities.sql
+DROP TABLE IF EXISTS health_test CASCADE;
+-- Add more DROP statements as needed for additional test entities
+```
+
+### Reset Process
+1. Execute `dropEntities.sql` to clear test state
+2. Run `rolemanagement.sql` for schema setup
+3. Execute `tables.sql` to recreate required tables
+4. Run smoke tests to verify setup
+
 ## RAG Strategy Evolution
 1. **Traditional Naive RAG**: Basic vector similarity search
 2. **Hybrid RAG**: Vector + full-text/keyword search
@@ -84,28 +106,42 @@ registration:
 - Local sandbox for rapid iteration
 
 ### Current Stack
-- Supabase (structured + vector storage)
-- Neo4J (graph + vector storage)
-- OpenAI (model provider)
-- LangChain (agent framework)
-- Slack (primary UI)
+- **Supabase**: Primary storage backend (structured + vector storage)
+- **Neo4J**: Graph storage backend (planned)
+- **OpenAI**: Model provider (planned)
+- **LangChain**: Agent framework (planned)
+- **Slack**: Primary UI (planned)
+
+### Infrastructure Status
+- ✅ **Supabase Local**: Operational with test infrastructure
+- ✅ **Test Framework**: Complete with automated reset process
+- ✅ **Configuration System**: Operational with environment variable support
+- ✅ **Storage Backend**: SupabaseStorageBackend implemented and integrated
+- ✅ **Health Checks**: Comprehensive health monitoring implemented
 
 ## Success Criteria & Milestones
 
-### Phase 1 Success
-- [x] Local Supabase and Neo4J containers operational
+### Phase 1 Success ✅ COMPLETED
+- [x] Local Supabase container operational
+- [x] Test infrastructure with automated reset process
+- [x] Basic configuration-driven processing
+- [x] SupabaseStorageBackend integrated with KnowledgeManager
+- [x] Health check system operational
+- [x] All tests passing with simplified architecture
+
+### Phase 2 Success (Next)
 - [ ] Vector ingest of sample ideation session with LDA chunking
 - [ ] n8n chatbot integration for RAG testing
-- [x] Basic configuration-driven processing
-
-### Phase 2 Success
 - [ ] Topic analysis with LDA and other algorithms
 - [ ] Graph ingest with PPS Schema extensions
-- [ ] Agent tool selection based on knowledge type
-- [ ] Hybrid search capabilities
 
 ### Phase 3 Success
+- [ ] Agent tool selection based on knowledge type
+- [ ] Hybrid search capabilities
 - [ ] Multi-format file processing (PDF, DOCx, PPT)
 - [ ] Source reference preservation and retrieval
+
+### Phase 4 Success
 - [ ] Advanced RAG strategies (GraphRAG, reranking)
-- [ ] Production deployment patterns 
+- [ ] Production deployment patterns
+- [ ] Performance optimization and scaling 

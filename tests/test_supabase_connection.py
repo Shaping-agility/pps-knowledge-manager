@@ -18,14 +18,8 @@ def test_supabase_connection():
     assert client is not None
 
 
-def test_supabase_connection_with_database():
-    """Test that we can connect to Supabase with a specific database."""
-    client = get_supabase_client("pps_km_test")
-    assert client is not None
-
-
 def test_supabase_health_check():
-    """Test Supabase health check using direct client."""
+    """Test Supabase basic connectivity health check."""
     assert supabase_health_check() is True
 
 

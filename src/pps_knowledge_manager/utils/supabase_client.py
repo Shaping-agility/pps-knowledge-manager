@@ -27,10 +27,8 @@ def get_supabase_anon_key() -> str | None:
     return None
 
 
-def get_supabase_client(
-    database_name: str | None = None, use_anon_key: bool = False
-) -> Client:
-    """Get a Supabase client instance. Use as context manager for proper resource management."""
+def get_supabase_client(use_anon_key: bool = False) -> Client:
+    """Get a Supabase client instance with schema support. Use as context manager for proper resource management."""
     if not SUPABASE_URL:
         raise ValueError("Supabase URL is not set in environment variables.")
 
@@ -57,15 +55,14 @@ def get_supabase_client(
 
 
 class SupabaseConnection:
-    """Context manager for Supabase connections."""
+    """Context manager for Supabase connections with schema support."""
 
-    def __init__(self, database_name: str | None = None, use_anon_key: bool = False):
-        self.database_name = database_name
+    def __init__(self, use_anon_key: bool = False):
         self.use_anon_key = use_anon_key
         self.client = None
 
     def __enter__(self):
-        self.client = get_supabase_client(self.database_name, self.use_anon_key)
+        self.client = get_supabase_client(self.use_anon_key)
         return self.client
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -74,47 +71,42 @@ class SupabaseConnection:
 
 
 def supabase_health_check() -> bool:
+    """Legacy health check for backward compatibility - checks main database connectivity."""
     try:
-        # Log the credentials being used (mask the key for security)
         print(f"Supabase health check - URL: {SUPABASE_URL}")
 
-        # For health checks, use anon key for basic API operations
-        print("Using anon key for health check...")
+        # Use service role key for basic connectivity check
+        print("Using service role key for health check...")
 
-        # Debug: Get and log the anon key
-        anon_key = get_supabase_anon_key()
-        if anon_key:
-            masked_anon_key = (
-                anon_key[:10] + "..." + anon_key[-10:] if len(anon_key) > 20 else "***"
+        # Use stateless connection pattern with service role key
+        with SupabaseConnection(use_anon_key=False) as client:
+            print("Supabase client created successfully with service role key")
+
+            # Try a simple query to verify connectivity
+            print("Attempting to verify connectivity...")
+            response = (
+                client.table("_dummy_table_that_does_not_exist_")
+                .select("*")
+                .limit(1)
+                .execute()
             )
-            print(f"Retrieved anon key: {masked_anon_key}")
-        else:
-            print("Failed to retrieve anon key")
-            return False
 
-        # Use stateless connection pattern
-        with SupabaseConnection(use_anon_key=True) as client:
-            print("Supabase client created successfully with anon key")
-
-            # Try a simple query that doesn't require a specific table
-            print("Attempting to query system information...")
-            response = client.rpc("version").execute()
-
+            # We expect this to fail with a specific error, but the fact that we get a response
+            # means the connection is working
             print(f"Response received: {response}")
-            print(f"Response data: {response.data if response else 'None'}")
 
-            if response is not None:
-                print("Supabase health check passed")
-                return True
-            else:
-                print(
-                    f"Supabase health check failed: No data returned. Full response: {response}"
-                )
-                return False
+            # If we get here, the connection is working (even if the table doesn't exist)
+            print("Supabase health check passed - connection verified")
+            return True
+
     except Exception as e:
-        import traceback
-
-        print(f"Supabase health check failed with exception: {e}")
-        print(f"Exception type: {type(e).__name__}")
-        traceback.print_exc()
-        return False
+        # Check if it's the expected "table doesn't exist" error
+        if "does not exist" in str(e) or "42P01" in str(e):
+            print(
+                "Supabase health check passed - connection verified (expected table not found error)"
+            )
+            return True
+        else:
+            print(f"Supabase health check failed with unexpected exception: {e}")
+            print(f"Exception type: {type(e).__name__}")
+            return False

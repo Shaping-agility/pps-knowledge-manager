@@ -28,7 +28,6 @@ class ConfigManager:
                 "supabase": {
                     "url": "http://localhost:8000",
                     "key": "your-supabase-key",
-                    "database_name": "pps_km_test",
                     "enabled": True,
                 },
                 "neo4j": {

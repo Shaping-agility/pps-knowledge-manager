@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS health_test CASCADE; 

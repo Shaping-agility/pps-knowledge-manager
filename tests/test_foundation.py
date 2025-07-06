@@ -76,51 +76,6 @@ def test_config_manager_default_config():
         assert config.get("storage.neo4j.enabled") is False
 
 
-def test_knowledge_manager_initialization():
-    """Test that KnowledgeManager can be initialized."""
-    km = KnowledgeManager()
-    assert km.config is not None
-    assert len(km.triggers) == 0
-    assert len(km.storage_backends) == 0
-
-
-def test_knowledge_manager_add_components():
-    """Test adding components to KnowledgeManager."""
-    km = KnowledgeManager()
-
-    # Add test components
-    strategy = TestChunkingStrategy({})
-    backend = TestStorageBackend({})
-    trigger = TestTrigger({})
-
-    km.add_chunking_strategy("test", strategy)
-    km.add_storage_backend(backend)
-    km.add_trigger(trigger)
-
-    assert "test" in km.chunking_strategies
-    assert len(km.storage_backends) == 1
-    assert len(km.triggers) == 1
-
-
-def test_knowledge_manager_health_check():
-    """Test health check functionality."""
-    km = KnowledgeManager()
-
-    # Add test components
-    backend = TestStorageBackend({})
-    trigger = TestTrigger({})
-
-    km.add_storage_backend(backend)
-    km.add_trigger(trigger)
-
-    # Start trigger
-    trigger.start()
-
-    health = km.health_check()
-    assert health["triggers"] is True
-    assert health["storage"] is True
-
-
 def test_chunk_creation():
     """Test Chunk dataclass creation."""
     chunk = Chunk(

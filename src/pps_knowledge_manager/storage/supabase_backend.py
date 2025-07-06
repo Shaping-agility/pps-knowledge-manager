@@ -15,7 +15,6 @@ class SupabaseStorageBackend(VectorStorage):
         super().__init__(config)
         self.url = config.get("url")
         self.key = config.get("key")
-        self.database_name = config.get("database_name", "postgres")
         # No client initialization - connections are stateless
 
     def store_chunk(self, chunk: Chunk) -> bool:
@@ -69,7 +68,7 @@ class SupabaseStorageBackend(VectorStorage):
     def health_check(self) -> bool:
         """Check if Supabase storage is healthy."""
         try:
-            # Try to query the health_test table (should exist in test database)
+            # Try to query the health_test table in the test schema
             with SupabaseConnection(use_anon_key=False) as client:
                 response = client.table("health_test").select("*").limit(1).execute()
                 return response is not None

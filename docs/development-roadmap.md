@@ -3,40 +3,49 @@
 ## Overview
 This roadmap outlines the iterative development approach for the PPS Knowledge Manager, focusing on learning-driven evolution and test-driven development.
 
-## Iteration 1: Foundation Setup
+## Iteration 1: Foundation Setup ✅ COMPLETED
 **Goal**: Establish local development environment and basic infrastructure
 
-### Tasks
-1. **Supabase Local Setup**
-   - Install and configure Supabase Docker container
-   - Create initial database schema for knowledge storage
-   - Test basic connectivity and operations
-   - Document setup process
+### Completed Tasks
+1. **Supabase Local Setup** ✅
+   - Installed and configured Supabase Docker container
+   - Created initial database schema for knowledge storage
+   - Tested basic connectivity and operations
+   - Documented setup process
 
-2. **Project Structure Setup**
-   - Implement 3-layer architecture foundation
+2. **Project Structure Setup** ✅
+   - Implemented 3-layer architecture foundation
    - Set up configuration management system
-   - Create basic test framework with pytest
-   - Establish logging and monitoring
+   - Created comprehensive test framework with pytest
+   - Established logging and monitoring
 
-### Success Criteria
-- [ ] Supabase container running and accessible
-- [ ] Basic project structure in place
-- [ ] First tests passing
-- [ ] Configuration system operational
+3. **Test Infrastructure Refactoring** ✅
+   - Simplified architecture to single database approach
+   - Implemented script-based test state management (`dropEntities.sql`)
+   - Removed complex schema/database isolation logic
+   - Achieved clean separation between test and production code
 
-### Learning Goals
-- Understand Supabase local development workflow
-- Establish testing patterns for the project
-- Validate 3-layer architecture approach
+### Success Criteria ✅ ALL COMPLETED
+- [x] Supabase container running and accessible
+- [x] Basic project structure in place
+- [x] All tests passing with simplified architecture
+- [x] Configuration system operational
+- [x] Test infrastructure with automated reset process
+- [x] Health check system operational
 
-## Iteration 2: Basic Vector Ingest
-**Goal**: Implement simple text processing with LDA chunking
+### Key Learnings
+- **Simplified Architecture**: Single database approach with script-based reset is more maintainable than complex schema isolation
+- **Test-Driven Development**: Comprehensive test framework enables rapid iteration and confidence in changes
+- **Configuration Management**: Environment-based configuration with dotenv provides flexibility for different environments
+- **Stateless Connections**: Creating and closing Supabase connections per operation prevents resource leaks and import-time blocking
+
+## Iteration 2: Basic Vector Ingest (Current)
+**Goal**: Implement simple text processing pipeline using standard LangChain splitters
 
 ### Tasks
 1. **Text Processing Pipeline**
    - Implement basic text file ingestion
-   - Create LDA-based chunking strategy
+   - Integrate LangChain text splitters (TextSplitter or RecursiveCharacterTextSplitter)
    - Build vector embedding generation
    - Store chunks in Supabase vector store
 
@@ -46,15 +55,16 @@ This roadmap outlines the iterative development approach for the PPS Knowledge M
    - Test basic vector search functionality
 
 ### Success Criteria
-- [ ] Can ingest text files and generate LDA chunks
+- [ ] Can ingest text files and generate chunks using LangChain splitters
 - [ ] Chunks stored in Supabase with metadata
 - [ ] Basic vector search returns relevant results
 - [ ] Sample ideation session fully processed
 
 ### Learning Goals
-- Validate LDA chunking approach for transcripts
-- Understand vector storage performance characteristics
+- Understand LangChain text splitting capabilities and configuration
+- Learn vector storage performance characteristics
 - Identify metadata requirements for knowledge retrieval
+- Establish baseline chunking quality for comparison with semantic approaches
 
 ## Iteration 3: n8n Integration
 **Goal**: Connect knowledge store to existing n8n chatbot for RAG testing
@@ -81,14 +91,14 @@ This roadmap outlines the iterative development approach for the PPS Knowledge M
 - Identify optimal query patterns
 - Learn from n8n integration challenges
 
-## Iteration 4: Topic Analysis Enhancement
-**Goal**: Experiment with advanced topic analysis and chunking strategies
+## Iteration 4: Semantic Chunking Enhancement
+**Goal**: Implement sentence transformers and semantic chunking strategies
 
 ### Tasks
-1. **LDA Implementation**
-   - Implement LDA topic modeling for chunk boundary detection
-   - Compare with other topic analysis approaches
-   - Optimize chunking for different content types
+1. **Sentence Transformers Integration**
+   - Implement sentence transformer models for semantic analysis
+   - Create semantic chunking strategies
+   - Compare with standard LangChain splitters
 
 2. **Chunking Strategy Evaluation**
    - Test semantic boundary detection
@@ -96,15 +106,16 @@ This roadmap outlines the iterative development approach for the PPS Knowledge M
    - Implement configurable chunking strategies
 
 ### Success Criteria
-- [ ] LDA topic analysis operational
-- [ ] Multiple chunking strategies available
+- [ ] Sentence transformer-based chunking operational
+- [ ] Multiple chunking strategies available (standard + semantic)
 - [ ] Chunk quality metrics implemented
 - [ ] Configurable chunking pipeline
 
 ### Learning Goals
-- Understand which chunking strategies work best for different content
-- Identify optimal topic modeling parameters
+- Understand semantic chunking approaches and their benefits
+- Identify optimal chunking strategies for different content types
 - Learn about chunk quality evaluation methods
+- Compare performance between standard and semantic approaches
 
 ## Iteration 5: Graph Storage Integration
 **Goal**: Implement Neo4J integration with PPS Schema extensions
@@ -157,17 +168,35 @@ This roadmap outlines the iterative development approach for the PPS Knowledge M
 - Identify best practices for agent knowledge integration
 
 ## Current Status
-- **Current Iteration**: 1 - Foundation Setup
-- **Next Milestone**: Basic Vector Ingest (Iteration 2)
-- **Current Blocker**: None - Foundation complete
+- **Current Iteration**: 2 - Basic Vector Ingest
+- **Previous Iteration**: ✅ 1 - Foundation Setup (COMPLETED)
+- **Next Milestone**: Text processing pipeline with LangChain splitters
+- **Current Blocker**: None - Foundation complete and ready for next phase
 - **Recent Progress**: 
-  - ✅ Test infrastructure implemented with SupabaseTestDataManager
-  - ✅ Basic project structure and 3-layer architecture in place
-  - ✅ Environment variables configured (SUPABASE_USER, SUPABASE_PW added)
-  - ✅ Local Supabase container operational
-  - ✅ SupabaseStorageBackend implemented and integrated with KnowledgeManager
-  - ✅ Configuration-driven processing operational
-  - ✅ All test/dev cycles now use KnowledgeManager as single source of truth
+  - ✅ **Foundation Complete**: All infrastructure operational
+  - ✅ **Simplified Architecture**: Removed complex schema/database isolation
+  - ✅ **Test Infrastructure**: Automated reset process with `dropEntities.sql`
+  - ✅ **Health Monitoring**: Comprehensive health checks implemented
+  - ✅ **Configuration System**: Environment-based configuration operational
+  - ✅ **Storage Backend**: SupabaseStorageBackend integrated with KnowledgeManager
+  - ✅ **All Tests Passing**: 7/7 tests passing with clean architecture
+
+## Architecture Decisions & Patterns
+
+### Test State Management
+- **Approach**: Script-based reset using `dropEntities.sql`
+- **Benefits**: Simple, explicit, easy to extend
+- **Pattern**: Add DROP statements to `dropEntities.sql` for new test entities
+
+### Database Architecture
+- **Approach**: Single database with `public` schema
+- **Benefits**: Simpler, more compatible with Supabase API
+- **Pattern**: All operations use default database, no schema switching
+
+### Connection Management
+- **Approach**: Stateless connections with context managers
+- **Benefits**: Prevents resource leaks, avoids import-time blocking
+- **Pattern**: Use `SupabaseConnection` context manager for all operations
 
 ## Notes
 - Each iteration should be completed before moving to the next
