@@ -14,6 +14,7 @@ A flexible, multi-modal knowledge management system that serves as the cognitive
 8. **Batch Processing**: Optimized for batch operations with real-time capabilities where needed
 9. **Simplified Test Management**: Clean test state management using script-based reset approach
 10. **Production-Ready Architecture**: Lambda-compatible design patterns for seamless cloud deployment
+11. **Robust DDL/Test Infrastructure**: DDL scripts and test data manager support multi-line SQL, inline/full-line comments, and complex schema evolution
 
 ## Knowledge Types & Processing Requirements
 
@@ -71,6 +72,7 @@ registration:
 - Graph schema extensions (PPS Schema + Person, etc.)
 - Vector embedding generation and storage
 - Idempotent operations for Lambda retry scenarios
+- **Unified Vector Schema**: Chunks table stores both content and vector embedding for direct LangChain/RAG compatibility
 
 ## Test Infrastructure & State Management
 
@@ -80,12 +82,22 @@ registration:
 - **Clean Separation**: Test data management separated from production logic
 - **Stateless Connections**: Supabase connections created and closed per operation
 - **Tests as Triggers**: Python tests serve as the primary trigger mechanism during development
+- **Robust SQL Parsing**: Test data manager now supports multi-line SQL, inline and full-line comments, and complex DDL scripts for reliable schema evolution
 
 ### Test Data Management
 ```sql
 -- data/DDL/dropEntities.sql
+-- Drop test entities in dependency order
 DROP TABLE IF EXISTS health_test CASCADE;
--- Add more DROP statements as needed for additional test entities
+DROP INDEX IF EXISTS idx_chunks_embedding;
+DROP INDEX IF EXISTS idx_chunks_metadata_gin;
+DROP INDEX IF EXISTS idx_chunks_type;
+DROP INDEX IF EXISTS idx_chunks_document_id;
+DROP INDEX IF EXISTS idx_documents_metadata_gin;
+DROP INDEX IF EXISTS idx_documents_file_path;
+DROP TABLE IF EXISTS chunks CASCADE;
+DROP TABLE IF EXISTS documents CASCADE;
+DROP EXTENSION IF EXISTS vector;
 ```
 
 ### Reset Process
@@ -93,6 +105,11 @@ DROP TABLE IF EXISTS health_test CASCADE;
 2. Run `rolemanagement.sql` for schema setup
 3. Execute `tables.sql` to recreate required tables
 4. Run smoke tests to verify setup
+
+### DDL/Schema Notes
+- DDL scripts can use both full-line and inline comments (`-- comment`)
+- Multi-line SQL statements are supported
+- Test data manager parses and executes statements robustly, ensuring reliable test cycles
 
 ## Production-Ready Architecture Patterns
 
@@ -114,6 +131,7 @@ DROP TABLE IF EXISTS health_test CASCADE;
 - **Built-in Retry Logic**: Handles transient failures automatically
 - **Rate Limiting**: Built-in protection against overwhelming the database
 - **Vector Operations**: Native support for similarity search and embeddings
+- **Unified Table for RAG**: Chunks table stores both content and embedding for direct LangChain compatibility
 
 ### Development-to-Production Transition
 - **Current Environment**: Local Docker containers with test-driven development
@@ -157,6 +175,7 @@ DROP TABLE IF EXISTS health_test CASCADE;
 - ✅ **Storage Backend**: SupabaseStorageBackend implemented and integrated
 - ✅ **Health Checks**: Comprehensive health monitoring implemented
 - ✅ **Lambda-Ready Architecture**: Stateless patterns implemented for cloud deployment
+- ✅ **Robust DDL/Test Infrastructure**: DDL/test manager supports complex SQL and comments
 
 ## Success Criteria & Milestones
 
@@ -168,6 +187,7 @@ DROP TABLE IF EXISTS health_test CASCADE;
 - [x] Health check system operational
 - [x] All tests passing with simplified architecture
 - [x] Lambda-ready architecture patterns implemented
+- [x] Robust DDL/test infrastructure for schema evolution
 
 ### Phase 2 Success (Next)
 - [ ] Vector ingest of sample ideation session with LDA chunking

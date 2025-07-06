@@ -15,6 +15,11 @@ class StorageBackend(ABC):
         self.config = config
 
     @abstractmethod
+    def store_document(self, document_metadata: Dict[str, Any]) -> str:
+        """Store document metadata and return document ID."""
+        pass
+
+    @abstractmethod
     def store_chunk(self, chunk: Chunk) -> bool:
         """Store a chunk in the backend."""
         pass
@@ -32,6 +37,16 @@ class StorageBackend(ABC):
     @abstractmethod
     def health_check(self) -> bool:
         """Check if the storage backend is healthy."""
+        pass
+
+    @abstractmethod
+    def get_document_count(self) -> int:
+        """Get the total number of documents stored."""
+        pass
+
+    @abstractmethod
+    def get_chunk_count(self) -> int:
+        """Get the total number of chunks stored."""
         pass
 
 

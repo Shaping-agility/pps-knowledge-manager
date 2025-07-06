@@ -17,17 +17,42 @@ class SupabaseStorageBackend(VectorStorage):
         self.key = config.get("key")
         # No client initialization - connections are stateless
 
+    def store_document(self, document_metadata: Dict[str, Any]) -> str:
+        """Store document metadata in Supabase and return document ID."""
+        try:
+            document_data = {
+                "title": document_metadata.get("title"),
+                "file_path": document_metadata.get("file_path"),
+                "file_type": document_metadata.get("file_type"),
+                "file_size": document_metadata.get("file_size"),
+                "metadata": document_metadata.get("metadata", {}),
+                "created_at": "now()",
+            }
+
+            with SupabaseConnection(use_anon_key=False) as client:
+                response = client.table("documents").insert(document_data).execute()
+                if response.data:
+                    return response.data[0]["id"]
+                else:
+                    raise Exception("Failed to insert document")
+        except Exception as e:
+            print(f"Error storing document in Supabase: {e}")
+            raise
+
     def store_chunk(self, chunk: Chunk) -> bool:
         """Store a chunk in Supabase."""
         try:
-            # Store in chunks table
+            # Store in chunks table - match the actual schema
             chunk_data = {
-                "id": chunk.chunk_id,
+                # Only include id if chunk.chunk_id is not None
+                **({"id": chunk.chunk_id} if chunk.chunk_id else {}),
+                "document_id": chunk.metadata.get("document_id"),
                 "content": chunk.content,
+                "chunk_index": chunk.metadata.get("chunk_index", 0),
+                "start_position": chunk.start_position,
+                "end_position": chunk.end_position,
+                "chunk_type": chunk.metadata.get("chunk_type", "unknown"),
                 "metadata": chunk.metadata,
-                "source_path": chunk.metadata.get("source_path", ""),
-                "chunk_type": chunk.metadata.get("strategy", "unknown"),
-                "created_at": chunk.metadata.get("created_at"),
             }
 
             with SupabaseConnection(use_anon_key=False) as client:
@@ -36,6 +61,26 @@ class SupabaseStorageBackend(VectorStorage):
         except Exception as e:
             print(f"Error storing chunk in Supabase: {e}")
             return False
+
+    def get_document_count(self) -> int:
+        """Get the total number of documents stored."""
+        try:
+            with SupabaseConnection(use_anon_key=False) as client:
+                response = client.table("documents").select("*").execute()
+                return len(response.data) if response.data else 0
+        except Exception as e:
+            print(f"Error getting document count: {e}")
+            return 0
+
+    def get_chunk_count(self) -> int:
+        """Get the total number of chunks stored."""
+        try:
+            with SupabaseConnection(use_anon_key=False) as client:
+                response = client.table("chunks").select("*").execute()
+                return len(response.data) if response.data else 0
+        except Exception as e:
+            print(f"Error getting chunk count: {e}")
+            return 0
 
     def search(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
         """Search for chunks using full-text search."""
@@ -46,11 +91,12 @@ class SupabaseStorageBackend(VectorStorage):
                     client.table("chunks")
                     .select("*")
                     .text_search("content", query)
-                    .limit(limit)
                     .execute()
                 )
 
-                return response.data or []
+                # Apply limit manually since limit() method may not be available
+                data = response.data or []
+                return data[:limit]
         except Exception as e:
             print(f"Error searching chunks in Supabase: {e}")
             return []

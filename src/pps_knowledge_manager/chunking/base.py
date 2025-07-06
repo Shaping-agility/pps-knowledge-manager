@@ -15,7 +15,7 @@ class Chunk:
     content: str
     metadata: Dict[str, Any]
     source_path: Path
-    chunk_id: str
+    chunk_id: Optional[str] = None
     start_position: Optional[int] = None
     end_position: Optional[int] = None
 
