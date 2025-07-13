@@ -53,6 +53,21 @@ For more testing options, see [docs/testing.md](docs/testing.md).
 
 All tests are auto-terminated after 30 seconds using [pytest-timeout](https://pypi.org/project/pytest-timeout/). This prevents hung tests from blocking CI or local runs. You can override the timeout per test with the `@pytest.mark.timeout(seconds)` marker.
 
+## Testing Strategy
+
+### Data Isolation
+Tests use an incremental count strategy for data isolation rather than resetting the database between tests:
+
+- **Baseline Capture**: Each test captures initial document and chunk counts before operations
+- **Incremental Validation**: Tests verify that counts increment by the expected amount (e.g., +1 document, +N chunks)
+- **Shared Database**: Tests run against a shared database state, allowing for realistic testing scenarios
+- **Deep Cycle Tests**: Full database resets are only performed for tests marked with `@pytest.mark.deep_cycle` and enabled via `DEEP_TEST_CYCLE=1`
+
+### Test Categories
+- **Unit Tests**: Test individual components in isolation
+- **Integration Tests**: Test component interactions using the incremental count strategy
+- **Deep Cycle Tests**: Full end-to-end tests that reset the database (run on demand only)
+
 ## Project Structure
 
 ```

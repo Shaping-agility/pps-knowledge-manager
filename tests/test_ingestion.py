@@ -40,12 +40,21 @@ class TestIngestionPipeline:
         # Arrange
         sample_file = self.getSampleFile()
 
+        # Capture baseline counts
+        initial_docs = ingestion_pipeline.storage_backend.get_document_count()
+        initial_chunks = ingestion_pipeline.storage_backend.get_chunk_count()
+
         # Act
         result = ingestion_pipeline.process_file(sample_file)
 
         # Assert
         self._validatePipelineResults(result)
-        self._validateDatabaseCounts(ingestion_pipeline, result)
+        self._validateDatabaseCounts_incremental(
+            ingestion_pipeline,
+            result,
+            initial_docs,
+            initial_chunks,
+        )
 
     def test_ingestion_pipeline_handles_missing_file(self, ingestion_pipeline):
         """Test that ingestion pipeline handles missing files gracefully."""
@@ -63,13 +72,22 @@ class TestIngestionPipeline:
         # Arrange
         test_file = self.createTestFile()
 
+        # Capture baseline counts
+        initial_docs = ingestion_pipeline.storage_backend.get_document_count()
+        initial_chunks = ingestion_pipeline.storage_backend.get_chunk_count()
+
         try:
             # Act
             result = ingestion_pipeline.process_file(test_file)
 
             # Assert
             self._validateChunkCreation(result)
-            self._validateDatabaseState(ingestion_pipeline, result)
+            self._validateDatabaseCounts_incremental(
+                ingestion_pipeline,
+                result,
+                initial_docs,
+                initial_chunks,
+            )
 
         finally:
             self._cleanupTestFile(test_file)
@@ -131,17 +149,24 @@ class TestIngestionPipeline:
             result["total_chunks"] == result["chunks_created"]
         ), "All chunks should be stored"
 
-    def _validateDatabaseCounts(self, ingestion_pipeline, result):
-        """Validate the database counts after ingestion."""
-        final_doc_count = ingestion_pipeline.storage_backend.get_document_count()
-        final_chunk_count = ingestion_pipeline.storage_backend.get_chunk_count()
+    def _validateDatabaseCounts_incremental(
+        self,
+        ingestion_pipeline,
+        result,
+        initial_docs: int,
+        initial_chunks: int,
+    ):
+        """Validate that database counts increment correctly after ingestion."""
+        final_docs = ingestion_pipeline.storage_backend.get_document_count()
+        final_chunks = ingestion_pipeline.storage_backend.get_chunk_count()
 
-        assert (
-            final_doc_count == 1
-        ), f"Should have exactly 1 document, got {final_doc_count}"
-        assert (
-            final_chunk_count == result["chunks_created"]
-        ), f"Should have {result['chunks_created']} chunks, got {final_chunk_count}"
+        assert final_docs == initial_docs + 1, (
+            f"Doc count should increment by 1 " f"({initial_docs} → {final_docs})"
+        )
+        assert final_chunks == initial_chunks + result["chunks_created"], (
+            f"Chunk count should increment by {result['chunks_created']} "
+            f"({initial_chunks} → {final_chunks})"
+        )
 
     def _validateChunkCreation(self, result):
         """Validate that chunks were created successfully."""
