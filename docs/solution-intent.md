@@ -77,14 +77,42 @@ registration:
 
 ## Test Infrastructure & State Management
 
-### Simplified Test Architecture
-- **Single Database Approach**: All operations use the default Supabase database and `public` schema
-- **Script-Based Reset**: Test state management through `dropEntities.sql` script
-- **Test Data Manager Reset Policy**: The reset operation is intended to be run once at the start of a test cycle, not by individual tests. Tests should be self-contained and not assume a clean database state beyond the initial reset.
-- **Clean Separation**: Test data management separated from production logic
-- **Stateless Connections**: Supabase connections created and closed per operation
-- **Tests as Triggers**: Python tests serve as the primary trigger mechanism during development
-- **Robust SQL Parsing**: Test data manager now supports multi-line SQL, inline and full-line comments, and complex DDL scripts for reliable schema evolution
+### Layered Test Architecture ✅ IMPLEMENTED
+- **Directory Structure**: Organized into `unit/`, `functional/`, and `deep_cycle/` test categories
+- **Session-Scoped Fixtures**: Heavy operations (DB reset, ingestion) run once per test session
+- **Incremental Count Strategy**: Tests validate count increments rather than absolute database state
+- **Order-Independent Execution**: Tests can run in any order or parallel without dependencies
+- **Intent-Based Marking**: Clear separation between `primary`, `coverage`, and `deep_cycle` tests
+
+### Test Categories & Phases
+- **Primary Tests** (`@pytest.mark.primary`): Core functional behavior - quick smoke tests
+- **Coverage Tests** (`@pytest.mark.coverage`): Additional edge-case coverage
+- **Deep Cycle Tests** (`@pytest.mark.deep_cycle`): Tests that reset DB or run >10s
+- **Phase Marks**: `phase_reset`, `phase_ingest`, `phase_retrieval` for test categorization
+
+### Fixture Architecture
+```python
+# tests/conftest.py - Global fixtures
+@pytest.fixture(scope="session")
+def fresh_db():
+    """Ensure database is reset to clean state once per test session."""
+    
+@pytest.fixture(scope="session") 
+def ingested_db(fresh_db):
+    """Populate DB with sample data once per test session."""
+```
+
+### Data Isolation Strategy
+- **Baseline Capture**: Each test captures initial document and chunk counts before operations
+- **Incremental Validation**: Tests verify that counts increment by expected amounts
+- **Shared Database State**: Tests run against shared database, enabling realistic scenarios
+- **Idempotent Handling**: Tests gracefully handle duplicate file ingestion (0 chunks created)
+
+### Test Execution Patterns
+- **Quick Smoke**: `pytest -m primary -q` (seconds)
+- **Full Functional**: `pytest -m "primary or coverage" -q` (no deep reset)
+- **Deep Cycle**: `pytest -m deep_cycle -q` (nightly)
+- **Complete Suite**: `pytest -q` (all tests)
 
 ### Test Data Management
 ```sql
@@ -99,6 +127,7 @@ DROP INDEX IF EXISTS idx_documents_metadata_gin;
 DROP INDEX IF EXISTS idx_documents_file_path;
 DROP TABLE IF EXISTS chunks CASCADE;
 DROP TABLE IF EXISTS documents CASCADE;
+DROP FUNCTION IF EXISTS match_chunks(VECTOR, FLOAT, INTEGER);
 DROP EXTENSION IF EXISTS vector;
 ```
 
@@ -106,12 +135,15 @@ DROP EXTENSION IF EXISTS vector;
 1. Execute `dropEntities.sql` to clear test state
 2. Run `rolemanagement.sql` for schema setup
 3. Execute `tables.sql` to recreate required tables
-4. Run smoke tests to verify setup
+4. Run `vector_search.sql` for RPC functions
+5. Execute `security.sql` for RLS policies
+6. Run smoke tests to verify setup
 
 ### DDL/Schema Notes
 - DDL scripts can use both full-line and inline comments (`-- comment`)
 - Multi-line SQL statements are supported
 - Test data manager parses and executes statements robustly, ensuring reliable test cycles
+- Vector extension and RPC functions are properly managed in dependency order
 
 ## Metadata Handling & Chunking Patterns
 - **Canonical Metadata Structure**: All ingestion and chunking operations use a flat, consistent metadata structure (e.g., `file_path`, `filename`, `file_type`, `processed_at`, `chunking_strategy`).
@@ -205,11 +237,19 @@ DROP EXTENSION IF EXISTS vector;
 - [x] Environment hygiene (Docker exec removal) completed
 - [x] Deep cycle testing infrastructure operational
 
+### Phase 2b Success ✅ COMPLETED
+- [x] Layered test architecture with session-scoped fixtures
+- [x] Incremental count strategy for data isolation
+- [x] Intent-based test marking (primary/coverage/deep_cycle)
+- [x] Order-independent test execution
+- [x] Embedding enrichment and vector similarity search
+- [x] Global test timeout protection (30s default)
+
 ### Phase 3 Success (Next)
 - [ ] n8n chatbot integration for RAG testing
 - [ ] Topic analysis with LDA and other algorithms
 - [ ] Graph ingest with PPS Schema extensions
-- [ ] Embedding enrichment and vector similarity search
+- [ ] API development for external integrations
 
 ### Phase 4 Success
 - [ ] Agent tool selection based on knowledge type

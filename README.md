@@ -55,6 +55,16 @@ All tests are auto-terminated after 30 seconds using [pytest-timeout](https://py
 
 ## Testing Strategy
 
+### Test Architecture
+The test suite uses a **layered, session-scoped fixture approach** for clean separation and efficient execution:
+
+```
+tests/
+  unit/          # Pure logic tests (no DB)
+  functional/    # DB tests using shared fixtures
+  deep_cycle/    # Tests that reset DB (run on demand)
+```
+
 ### Data Isolation
 Tests use an incremental count strategy for data isolation rather than resetting the database between tests:
 
@@ -64,9 +74,36 @@ Tests use an incremental count strategy for data isolation rather than resetting
 - **Deep Cycle Tests**: Full database resets are only performed for tests marked with `@pytest.mark.deep_cycle` and enabled via `DEEP_TEST_CYCLE=1`
 
 ### Test Categories
-- **Unit Tests**: Test individual components in isolation
-- **Integration Tests**: Test component interactions using the incremental count strategy
-- **Deep Cycle Tests**: Full end-to-end tests that reset the database (run on demand only)
+- **Primary Tests** (`@pytest.mark.primary`): Core functional behavior - quick smoke tests
+- **Coverage Tests** (`@pytest.mark.coverage`): Additional edge-case coverage
+- **Deep Cycle Tests** (`@pytest.mark.deep_cycle`): Tests that reset DB or run >10s
+
+### Test Phases
+- **Phase Reset** (`@pytest.mark.phase_reset`): Assert DB schema/health after reset
+- **Phase Ingest** (`@pytest.mark.phase_ingest`): Verify ingestion results  
+- **Phase Retrieval** (`@pytest.mark.phase_retrieval`): Verify retrieval / embedding
+
+### Running Tests
+
+Quick smoke (seconds):
+```bash
+pytest -m primary -q
+```
+
+Full functional (no deep reset):
+```bash
+pytest -m "primary or coverage" -q
+```
+
+Deep cycle (nightly):
+```bash
+pytest -m deep_cycle -q
+```
+
+All tests:
+```bash
+pytest -q
+```
 
 ## Project Structure
 

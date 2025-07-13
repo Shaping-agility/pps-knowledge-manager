@@ -1,36 +1,15 @@
 """
-NOTE: Mocks are not permitted in this codebase without explicit approval from the project owner.
-
-Integration tests for embedding functionality using the real database and embedding logic.
+Functional tests for embedding and similarity search functionality.
 """
 
 import os
 import pytest
 from pathlib import Path
-from src.pps_knowledge_manager.utils.test_data_manager import SupabaseTestDataManager
-from src.pps_knowledge_manager.core.knowledge_manager import KnowledgeManager
 from src.pps_knowledge_manager.chunking.base import Chunk
 from src.pps_knowledge_manager.utils.embedding_service import EmbeddingService
 
 
-@pytest.fixture(scope="module", autouse=True)
-def reset_database():
-    manager = SupabaseTestDataManager()
-    assert manager.reset(), "Database reset failed"
-
-
-@pytest.fixture
-def knowledge_manager():
-    return KnowledgeManager()
-
-
-@pytest.fixture
-def embedding_service():
-    api_key = os.getenv("OPENAI_API_KEY")
-    assert api_key, "OPENAI_API_KEY must be set for embedding tests."
-    return EmbeddingService(api_key=api_key)
-
-
+@pytest.mark.primary
 def test_embedding_string_format_conversion():
     """Test that embedding list is correctly converted to PostgreSQL vector string format."""
     # Test embedding conversion logic
@@ -43,6 +22,7 @@ def test_embedding_string_format_conversion():
     assert embedding_str.endswith("]")
 
 
+@pytest.mark.primary
 def test_embedding_service_generation(embedding_service):
     """Test that embedding service can generate embeddings without database operations."""
     text = "This is a simple test text for embedding generation."
@@ -60,6 +40,7 @@ def test_embedding_service_generation(embedding_service):
     assert len(embedding_str) > 0
 
 
+@pytest.mark.coverage
 def test_minimal_embedding_storage(knowledge_manager, embedding_service):
     """Minimal test to verify embedding storage without database reset."""
     # Create a document first
@@ -97,7 +78,11 @@ def test_minimal_embedding_storage(knowledge_manager, embedding_service):
     print(f"Embedding string format: {embedding[:3]}...")  # Show first 3 values
 
 
-def test_embedding_generation_and_storage(knowledge_manager, embedding_service):
+@pytest.mark.primary
+@pytest.mark.phase_retrieval
+def test_embedding_generation_and_storage(
+    ingested_db, knowledge_manager, embedding_service
+):
     # Create a fake document and chunk
     doc_metadata = {
         "title": "Test Doc",
@@ -147,7 +132,11 @@ def test_embedding_generation_and_storage(knowledge_manager, embedding_service):
         assert db_chunk["embedding"].endswith("]")
 
 
-def test_similarity_search_returns_expected_chunk(knowledge_manager, embedding_service):
+@pytest.mark.primary
+@pytest.mark.phase_retrieval
+def test_similarity_search_returns_expected_chunk(
+    ingested_db, knowledge_manager, embedding_service
+):
     # Use the same content as above to ensure a high similarity
     query = "This is a test chunk for embedding."
     results = knowledge_manager.similarity_search(query, limit=3)
@@ -157,3 +146,10 @@ def test_similarity_search_returns_expected_chunk(knowledge_manager, embedding_s
     assert "similarity" in top
     assert top["similarity"] > 0.8
     assert query.lower()[:10] in top["content"].lower()
+
+
+@pytest.fixture
+def embedding_service():
+    api_key = os.getenv("OPENAI_API_KEY")
+    assert api_key, "OPENAI_API_KEY must be set for embedding tests."
+    return EmbeddingService(api_key=api_key)
