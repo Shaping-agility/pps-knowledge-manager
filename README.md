@@ -133,6 +133,22 @@ pps-knowledge-manager/
 └── scripts/            # Utility scripts
 ```
 
+## Data Model
+
+### Document Persistence Strategy
+The system uses a **delete-recreate** strategy for document persistence:
+
+- **Document Storage**: When storing a document with an existing `file_path`, the system:
+  1. Deletes the existing document and all its chunks
+  2. Inserts a fresh document with new metadata
+  3. Creates new chunks for the document
+
+- **Chunk Storage**: Chunks are always inserted as new records (no upsert logic)
+
+- **Future Optimization**: The `_needs_update()` method provides a hook for future checksum/mtime comparison to avoid unnecessary delete-recreate cycles.
+
+This approach ensures data consistency and simplifies the persistence logic while maintaining performance for typical document sizes.
+
 ## Contributing
 
 1. Fork the repository
