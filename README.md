@@ -35,6 +35,23 @@ Install development dependencies:
 pip install -r requirements-dev.txt
 ```
 
+### Code Quality Checks
+
+Check code complexity (excludes utils directory by default):
+```bash
+# Check for B complexity and above (excludes utils)
+python scripts/radon-check.py
+
+# Check for C complexity and above (excludes utils)
+python scripts/radon-check.py C
+
+# Include utils directory in check
+python scripts/radon-check.py --include-utils
+
+# Direct radon usage
+radon cc src/pps_knowledge_manager/ --min B --exclude "src/pps_knowledge_manager/utils/*"
+```
+
 Run tests:
 ```bash
 # Regular tests (preserves database state)

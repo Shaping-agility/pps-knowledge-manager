@@ -1,0 +1,15 @@
+[radon]
+# Ignore directories and files
+exclude = 
+    src/pps_knowledge_manager/utils/*
+    tests/*
+    .venv/*
+    __pycache__/*
+    *.pyc
+
+# Complexity thresholds
+cc_min = A
+mi_min = A
+
+# Output format
+format = text 

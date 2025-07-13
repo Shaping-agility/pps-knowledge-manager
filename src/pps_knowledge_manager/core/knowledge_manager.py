@@ -2,14 +2,14 @@
 Main knowledge manager class that orchestrates the three layers.
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, cast
 from pathlib import Path
 import os
 
 from ..config import ConfigManager
 from ..triggers.base import Trigger
 from ..chunking.base import ChunkingStrategy, FileTypeDetector, Chunk
-from ..storage.base import StorageBackend
+from ..storage.base import StorageBackend, VectorStorage
 from ..storage.supabase_backend import SupabaseStorageBackend
 from ..utils.embedding_service import EmbeddingService
 
@@ -82,9 +82,12 @@ class KnowledgeManager:
     def add_chunking_strategy(self, name: str, strategy: ChunkingStrategy) -> None:
         """Add a chunking strategy to the system."""
         self.chunking_strategies[name] = strategy
-        # Register with file detector if it has file type associations
-        if hasattr(strategy, "supported_extensions"):
-            for ext in strategy.supported_extensions:
+        strategy_any = cast(Any, strategy)
+        if (
+            hasattr(strategy_any, "supported_extensions")
+            and strategy_any.supported_extensions
+        ):
+            for ext in strategy_any.supported_extensions:
                 self.file_detector.register_strategy(ext, strategy)
 
     def add_storage_backend(self, backend: StorageBackend) -> None:
@@ -96,42 +99,51 @@ class KnowledgeManager:
         if not file_path.exists():
             return False
 
-        # Get appropriate chunking strategy
-        strategy = self.file_detector.get_strategy(file_path)
+        strategy = self._get_chunking_strategy_for_file(file_path)
         if not strategy:
             return False
 
-        # Read file content
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                content = f.read()
-        except Exception as e:
-            print(f"Error reading file {file_path}: {e}")
+        content = self._read_file_content(file_path)
+        if content is None:
             return False
 
-        # Create metadata
-        metadata = {
+        metadata = self._create_file_metadata(file_path, strategy)
+        chunks = strategy.chunk(content, metadata)
+
+        return self._store_chunks_with_embeddings(chunks)
+
+    def _get_chunking_strategy_for_file(
+        self, file_path: Path
+    ) -> Optional[ChunkingStrategy]:
+        """Get appropriate chunking strategy for the file."""
+        return self.file_detector.get_strategy(file_path)
+
+    def _read_file_content(self, file_path: Path) -> Optional[str]:
+        """Read file content with error handling."""
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                return f.read()
+        except Exception as e:
+            print(f"Error reading file {file_path}: {e}")
+            return None
+
+    def _create_file_metadata(
+        self, file_path: Path, strategy: ChunkingStrategy
+    ) -> Dict[str, Any]:
+        """Create metadata for file processing."""
+        return {
             "source_path": str(file_path),
             "file_size": file_path.stat().st_size,
             "file_type": file_path.suffix,
             "strategy": strategy.get_strategy_name(),
         }
 
-        # Chunk the content
-        chunks = strategy.chunk(content, metadata)
-
-        # Store chunks in all backends with embeddings if available
+    def _store_chunks_with_embeddings(self, chunks: List[Chunk]) -> bool:
+        """Store chunks in all backends with embeddings if available."""
         success = True
         for backend in self.storage_backends:
             for chunk in chunks:
-                embedding = None
-                if self.embedding_service:
-                    try:
-                        embedding = self.embedding_service.generate_embedding(
-                            chunk.content
-                        )
-                    except Exception as e:
-                        print(f"Failed to generate embedding for chunk: {e}")
+                embedding = self._generate_embedding_for_chunk(chunk)
 
                 if isinstance(backend, SupabaseStorageBackend):
                     result = backend.store_chunk(chunk, embedding)
@@ -140,8 +152,18 @@ class KnowledgeManager:
                 else:
                     if not backend.store_chunk(chunk):
                         success = False
-
         return success
+
+    def _generate_embedding_for_chunk(self, chunk: Chunk) -> Optional[List[float]]:
+        """Generate embedding for a chunk if embedding service is available."""
+        if not self.embedding_service:
+            return None
+
+        try:
+            return self.embedding_service.generate_embedding(chunk.content)
+        except Exception as e:
+            print(f"Failed to generate embedding for chunk: {e}")
+            return None
 
     def search(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
         """Search across all storage backends."""
@@ -153,7 +175,6 @@ class KnowledgeManager:
             except Exception as e:
                 print(f"Error searching backend {backend.__class__.__name__}: {e}")
 
-        # Sort by relevance (this will be enhanced later)
         return results[:limit]
 
     def similarity_search(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
@@ -163,27 +184,27 @@ class KnowledgeManager:
             return []
 
         try:
-            # Generate embedding for the query
             query_embedding = self.embedding_service.generate_embedding(query)
-
-            # Search across vector storage backends
-            results = []
-            for backend in self.storage_backends:
-                if hasattr(backend, "similarity_search"):
-                    try:
-                        backend_results = backend.similarity_search(
-                            query_embedding, limit
-                        )
-                        results.extend(backend_results)
-                    except Exception as e:
-                        print(
-                            f"Error in similarity search for backend {backend.__class__.__name__}: {e}"
-                        )
-
-            return results[:limit]
+            return self._search_vector_backends(query_embedding, limit)
         except Exception as e:
             print(f"Error in similarity search: {e}")
             return []
+
+    def _search_vector_backends(
+        self, query_embedding: List[float], limit: int
+    ) -> List[Dict[str, Any]]:
+        """Search across vector storage backends."""
+        results = []
+        for backend in self.storage_backends:
+            if isinstance(backend, VectorStorage):
+                try:
+                    backend_results = backend.similarity_search(query_embedding, limit)
+                    results.extend(backend_results)
+                except Exception as e:
+                    print(
+                        f"Error in similarity search for backend {backend.__class__.__name__}: {e}"
+                    )
+        return results[:limit]
 
     def health_check(self) -> Dict[str, bool]:
         """Check health of all components."""

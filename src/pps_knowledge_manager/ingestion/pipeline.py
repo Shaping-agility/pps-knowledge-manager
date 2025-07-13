@@ -43,24 +43,28 @@ class IngestionPipeline:
     def _store_chunks(self, chunks: List[Chunk], document_id: str) -> Dict[str, Any]:
         """Store chunks and return operation results."""
         stored_chunks = []
-        created_count = 0
-        updated_count = 0
+        operation_counts = {"created": 0, "updated": 0}
 
         for chunk in chunks:
             chunk.metadata["document_id"] = document_id
             result = self.storage_backend.store_chunk(chunk)
+
             if result["success"]:
                 stored_chunks.append(chunk)
-                if result["operation"] == "created":
-                    created_count += 1
-                elif result["operation"] == "updated":
-                    updated_count += 1
+                self._increment_operation_count(operation_counts, result["operation"])
 
         return {
             "chunks": stored_chunks,
-            "created_count": created_count,
-            "updated_count": updated_count,
+            "created_count": operation_counts["created"],
+            "updated_count": operation_counts["updated"],
         }
+
+    def _increment_operation_count(
+        self, counts: Dict[str, int], operation: str
+    ) -> None:
+        """Increment the count for the specified operation."""
+        if operation in counts:
+            counts[operation] += 1
 
     def _create_ingestion_result(
         self,
