@@ -41,6 +41,11 @@ class ConfigManager:
                 "default_strategy": "lda",
                 "strategies": {"lda": {"num_topics": 10, "chunk_size": 1000}},
             },
+            "embeddings": {
+                "enabled": True,
+                "model": "text-embedding-3-small",
+                "batch_size": 100,
+            },
             "triggers": {
                 "webhook": {"enabled": True, "port": 8000},
                 "file_monitor": {"enabled": False, "watch_paths": []},

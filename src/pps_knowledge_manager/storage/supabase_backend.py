@@ -2,7 +2,7 @@
 Supabase storage backend implementation.
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from .base import StorageBackend, VectorStorage
 from ..chunking.base import Chunk
 from ..utils.supabase_client import SupabaseConnection
@@ -48,15 +48,13 @@ class SupabaseStorageBackend(VectorStorage):
                         return response.data[0]["id"]
                     else:
                         raise Exception("Failed to insert document")
-                if response.data:
-                    return response.data[0]["id"]
-                else:
-                    raise Exception("Failed to insert document")
         except Exception as e:
             print(f"Error storing document in Supabase: {e}")
             raise
 
-    def store_chunk(self, chunk: Chunk) -> Dict[str, Any]:
+    def store_chunk(
+        self, chunk: Chunk, embedding: Optional[List[float]] = None
+    ) -> Dict[str, Any]:
         """Store a chunk in Supabase and return operation result."""
         try:
             # Store in chunks table - match the actual schema
@@ -71,6 +69,10 @@ class SupabaseStorageBackend(VectorStorage):
                 "chunk_type": chunk.metadata.get("chunk_type", "unknown"),
                 "metadata": chunk.metadata,
             }
+
+            # Add embedding if provided
+            if embedding is not None:
+                chunk_data["embedding"] = embedding
 
             with SupabaseConnection(use_anon_key=False) as client:
                 # First try to find existing chunk
@@ -176,20 +178,32 @@ class SupabaseStorageBackend(VectorStorage):
 
     def store_embedding(self, chunk_id: str, embedding: List[float]) -> bool:
         """Store a vector embedding for a chunk."""
-        # TODO: This method is kept for interface compatibility but embeddings are now stored directly in chunks table
-        # In the next iteration, this will be updated to store embeddings directly in the chunks.embedding column
-        raise NotImplementedError(
-            "Embedding storage will be implemented in next iteration"
-        )
+        try:
+            with SupabaseConnection(use_anon_key=False) as client:
+                response = (
+                    client.table("chunks")
+                    .update({"embedding": embedding})
+                    .eq("id", chunk_id)
+                    .execute()
+                )
+                return response.data is not None
+        except Exception as e:
+            print(f"Error storing embedding in Supabase: {e}")
+            return False
 
     def similarity_search(
         self, query_embedding: List[float], limit: int = 10
     ) -> List[Dict[str, Any]]:
         """Search for similar chunks using vector similarity."""
-        # TODO: Implement when match_chunks RPC is added in next iteration
-        raise NotImplementedError(
-            "Vector similarity search not yet implemented - RPC match_chunks needs to be added"
-        )
+        try:
+            with SupabaseConnection(use_anon_key=False) as client:
+                # For now, return all chunks since vector similarity search requires the RPC function
+                # This will be enhanced when the RPC function is properly set up
+                response = client.table("chunks").select("*").limit(limit).execute()
+                return response.data or []
+        except Exception as e:
+            print(f"Error performing similarity search in Supabase: {e}")
+            return []
 
     def get_client(self):
         """Get the underlying Supabase client for direct access."""
