@@ -68,6 +68,31 @@ This roadmap outlines the iterative development approach for the PPS Knowledge M
 - Identify metadata requirements for knowledge retrieval
 - Establish baseline chunking quality for comparison with semantic approaches
 
+## Iteration 2b: Baseline Hardening (Planned)
+**Goal**: Solidify vector-ingest foundation by enforcing security, idempotency, and code cleanup before enabling embeddings.
+
+### Tasks
+1. **Security Baseline**
+   - Enable Row-Level-Security (RLS) on `documents` and `chunks` tables
+   - Add `security.sql` with minimal policies (anon read-only, service_role full access)
+2. **Environment Hygiene**
+   - Remove Docker exec anon-key retrieval logic
+   - Rely exclusively on `.env` variables (`SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_ANON_KEY`)
+3. **Idempotent Writes**
+   - Implement `ON CONFLICT` upsert logic for `documents` (`file_path`) and `chunks` (`document_id, chunk_index`)
+4. **Code Cleanup**
+   - Delete obsolete `store_embedding()` helper and stale RPC calls
+   - Merge embedding persistence into `store_chunk()`
+5. **Smoke & Retry Tests**
+   - Add duplication test ensuring re-ingest does not duplicate rows
+   - Verify `idx_chunks_embedding` index exists after reset
+
+### Success Criteria
+- [ ] RLS policies active and enforced
+- [ ] Insertion retries are idempotent
+- [ ] Docker-specific auth code removed
+- [ ] All new tests pass
+
 ## Iteration 3: n8n Integration
 **Goal**: Connect knowledge store to existing n8n chatbot for RAG testing
 
@@ -170,9 +195,9 @@ This roadmap outlines the iterative development approach for the PPS Knowledge M
 - Identify best practices for agent knowledge integration
 
 ## Current Status
-- **Current Iteration**: 2 - Basic Vector Ingest
-- **Previous Iteration**: ✅ 1 - Foundation Setup (COMPLETED)
-- **Next Milestone**: Text processing pipeline with LangChain splitters
+- **Current Iteration**: 2b - Baseline Hardening
+- **Previous Iteration**: ✅ 2 - Basic Vector Ingest (COMPLETED)
+- **Next Milestone**: Embedding enrichment – compute and store OpenAI embeddings
 - **Current Blocker**: None - Foundation complete and ready for next phase
 - **Recent Progress**: 
   - ✅ **Foundation Complete**: All infrastructure operational

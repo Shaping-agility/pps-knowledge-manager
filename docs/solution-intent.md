@@ -72,7 +72,8 @@ registration:
 - Graph schema extensions (PPS Schema + Person, etc.)
 - Vector embedding generation and storage
 - Idempotent operations for Lambda retry scenarios
-- **Unified Vector Schema**: Chunks table stores both content and vector embedding for direct LangChain/RAG compatibility
+- **Unified Vector Schema** ✅ Implemented – Chunks table now stores both content and vector embedding for direct LangChain/RAG compatibility
+- **PII/PIA Checks**: Deferred for now – controlled via configuration flag `require_pii_check` (default: `false`)
 
 ## Test Infrastructure & State Management
 
