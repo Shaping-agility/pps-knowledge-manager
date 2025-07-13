@@ -18,10 +18,14 @@ class SupabaseStorageBackend(VectorStorage):
         # No client initialization - connections are stateless
 
     def store_document(self, document_metadata: Dict[str, Any]) -> str:
-        """Store document metadata in Supabase and return document ID."""
+        """Store document metadata in Supabase and return document ID.
+
+        If a document with the same file_path already exists, it will be deleted
+        along with all its chunks, then a fresh document will be inserted.
+        """
         try:
             document_data = self._prepare_document_data(document_metadata)
-            return self._persist_document_with_upsert_logic(document_data)
+            return self._persist_document_with_delete_recreate_logic(document_data)
         except Exception as e:
             print(f"Error storing document in Supabase: {e}")
             raise
@@ -39,17 +43,35 @@ class SupabaseStorageBackend(VectorStorage):
             "created_at": "now()",
         }
 
-    def _persist_document_with_upsert_logic(self, document_data: Dict[str, Any]) -> str:
-        """Persist document using upsert logic (return existing ID if found, insert if new)."""
+    def _persist_document_with_delete_recreate_logic(
+        self, document_data: Dict[str, Any]
+    ) -> str:
+        """Persist document using delete-recreate logic (delete if exists, then insert fresh)."""
         with SupabaseConnection(use_anon_key=False) as client:
             existing_document = self._find_existing_document(
                 client, document_data["file_path"]
             )
 
-            if existing_document:
-                return existing_document["id"]
-            else:
-                return self._insert_new_document(client, document_data)
+            if existing_document and self._needs_update(
+                existing_document, document_data
+            ):
+                self._delete_document_and_chunks(existing_document["id"])
+
+            return self._insert_new_document(client, document_data)
+
+    def _needs_update(
+        self, existing_document: Dict[str, Any], new_document_data: Dict[str, Any]
+    ) -> bool:
+        """Determine if document needs to be updated based on metadata comparison.
+
+        Future implementation will check checksum, modification time, file size, etc.
+        For now, always returns True to ensure fresh document creation.
+        """
+        # TODO: Implement checksum/mtime comparison logic
+        # Example future logic:
+        # return (existing_document.get("checksum") != new_document_data.get("checksum") or
+        #         existing_document.get("file_size") != new_document_data.get("file_size"))
+        return True
 
     def _find_existing_document(
         self, client, file_path: str
@@ -71,10 +93,14 @@ class SupabaseStorageBackend(VectorStorage):
     def store_chunk(
         self, chunk: Chunk, embedding: Optional[List[float]] = None
     ) -> Dict[str, Any]:
-        """Store a chunk in Supabase and return operation result."""
+        """Store a chunk in Supabase and return operation result.
+
+        Always creates a new chunk - no upsert logic. If a chunk with the same
+        document_id and chunk_index exists, it will be overwritten by the new insert.
+        """
         try:
             chunk_data = self._prepare_chunk_data(chunk, embedding)
-            return self._persist_chunk_with_upsert_logic(chunk_data)
+            return self._insert_chunk(chunk_data)
         except Exception as e:
             print(f"Error storing chunk in Supabase: {e}")
             return {"success": False, "operation": "error", "error": str(e)}
@@ -111,62 +137,22 @@ class SupabaseStorageBackend(VectorStorage):
         ):
             raise ValueError("Embedding must be a list of floats.")
 
-    def _persist_chunk_with_upsert_logic(
-        self, chunk_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Persist chunk using upsert logic (insert if new, update if exists)."""
+    def _insert_chunk(self, chunk_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Insert a new chunk and return success result."""
         with SupabaseConnection(use_anon_key=False) as client:
-            existing_chunk = self._find_existing_chunk(client, chunk_data)
-
-            if existing_chunk:
-                return self._update_existing_chunk(client, chunk_data, existing_chunk)
+            response = client.table("chunks").insert(chunk_data).execute()
+            if response.data:
+                return {
+                    "success": True,
+                    "operation": "created",
+                    "chunk_id": response.data[0]["id"],
+                }
             else:
-                return self._insert_new_chunk(client, chunk_data)
-
-    def _find_existing_chunk(
-        self, client, chunk_data: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
-        """Find existing chunk by document_id and chunk_index."""
-        response = (
-            client.table("chunks")
-            .select("id")
-            .eq("document_id", chunk_data["document_id"])
-            .eq("chunk_index", chunk_data["chunk_index"])
-            .execute()
-        )
-        return response.data[0] if response.data else None
-
-    def _update_existing_chunk(
-        self, client, chunk_data: Dict[str, Any], existing_chunk: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Update existing chunk and return success result."""
-        response = (
-            client.table("chunks")
-            .update(chunk_data)
-            .eq("id", existing_chunk["id"])
-            .execute()
-        )
-        return {
-            "success": True,
-            "operation": "updated",
-            "chunk_id": existing_chunk["id"],
-        }
-
-    def _insert_new_chunk(self, client, chunk_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Insert new chunk and return success result."""
-        response = client.table("chunks").insert(chunk_data).execute()
-        if response.data:
-            return {
-                "success": True,
-                "operation": "created",
-                "chunk_id": response.data[0]["id"],
-            }
-        else:
-            return {
-                "success": False,
-                "operation": "failed",
-                "error": "No data returned",
-            }
+                return {
+                    "success": False,
+                    "operation": "failed",
+                    "error": "No data returned",
+                }
 
     def get_document_count(self) -> int:
         """Get the total number of documents stored."""
@@ -218,6 +204,17 @@ class SupabaseStorageBackend(VectorStorage):
         except Exception as e:
             print(f"Error deleting chunk from Supabase: {e}")
             return False
+
+    def _delete_document_and_chunks(self, document_id: str) -> None:
+        """Delete a document and all its chunks, maintaining referential integrity."""
+        try:
+            with SupabaseConnection(use_anon_key=False) as client:
+                # Delete chunks first, then document
+                client.table("chunks").delete().eq("document_id", document_id).execute()
+                client.table("documents").delete().eq("id", document_id).execute()
+        except Exception as e:
+            print(f"Error deleting document and chunks: {e}")
+            raise
 
     def health_check(self) -> bool:
         """Check if Supabase storage is healthy."""
