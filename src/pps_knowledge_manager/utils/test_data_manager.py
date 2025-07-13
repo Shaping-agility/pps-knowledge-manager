@@ -71,6 +71,7 @@ class SupabaseTestDataManager:
                 "data/DDL/dropEntities.sql",
                 "data/DDL/rolemanagement.sql",
                 "data/DDL/tables.sql",
+                "data/DDL/security.sql",
             ]
             success = self.run_script_sequence(script_paths)
             if not success:
@@ -179,11 +180,14 @@ class SupabaseTestDataManager:
             print("Running table existence smoke test...")
             conn = self._get_admin_connection("postgres")
 
-            # Check for required tables
+            # Check for required tables and indexes
             required_tables = ["health_test", "documents", "chunks"]
+            required_indexes = ["idx_chunks_embedding"]
             existing_tables = []
+            existing_indexes = []
 
             with conn.cursor() as cursor:
+                # Check tables
                 for table in required_tables:
                     cursor.execute(
                         "SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name = %s)",
@@ -194,16 +198,32 @@ class SupabaseTestDataManager:
                     existing_tables.append((table, exists))
                     print(f"Table {table}: {'✓' if exists else '✗'}")
 
+                # Check indexes
+                for index in required_indexes:
+                    cursor.execute(
+                        "SELECT EXISTS(SELECT 1 FROM pg_indexes WHERE indexname = %s)",
+                        (index,),
+                    )
+                    result = cursor.fetchone()
+                    exists = result[0] if result else False
+                    existing_indexes.append((index, exists))
+                    print(f"Index {index}: {'✓' if exists else '✗'}")
+
             conn.close()
 
-            # Check if all required tables exist
+            # Check if all required tables and indexes exist
             missing_tables = [table for table, exists in existing_tables if not exists]
+            missing_indexes = [
+                index for index, exists in existing_indexes if not exists
+            ]
 
-            if missing_tables:
-                print(f"Smoke test failed: Missing tables: {missing_tables}")
+            if missing_tables or missing_indexes:
+                print(
+                    f"Smoke test failed: Missing tables: {missing_tables}, Missing indexes: {missing_indexes}"
+                )
                 return False
             else:
-                print("All required tables exist ✓")
+                print("All required tables and indexes exist ✓")
                 return True
 
         except Exception as e:

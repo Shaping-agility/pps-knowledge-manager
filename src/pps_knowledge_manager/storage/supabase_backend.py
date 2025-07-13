@@ -30,7 +30,24 @@ class SupabaseStorageBackend(VectorStorage):
             }
 
             with SupabaseConnection(use_anon_key=False) as client:
-                response = client.table("documents").insert(document_data).execute()
+                # First try to find existing document
+                existing = (
+                    client.table("documents")
+                    .select("id")
+                    .eq("file_path", document_data["file_path"])
+                    .execute()
+                )
+
+                if existing.data:
+                    # Document exists, return existing ID
+                    return existing.data[0]["id"]
+                else:
+                    # Document doesn't exist, insert new one
+                    response = client.table("documents").insert(document_data).execute()
+                    if response.data:
+                        return response.data[0]["id"]
+                    else:
+                        raise Exception("Failed to insert document")
                 if response.data:
                     return response.data[0]["id"]
                 else:
@@ -39,8 +56,8 @@ class SupabaseStorageBackend(VectorStorage):
             print(f"Error storing document in Supabase: {e}")
             raise
 
-    def store_chunk(self, chunk: Chunk) -> bool:
-        """Store a chunk in Supabase."""
+    def store_chunk(self, chunk: Chunk) -> Dict[str, Any]:
+        """Store a chunk in Supabase and return operation result."""
         try:
             # Store in chunks table - match the actual schema
             chunk_data = {
@@ -56,11 +73,46 @@ class SupabaseStorageBackend(VectorStorage):
             }
 
             with SupabaseConnection(use_anon_key=False) as client:
-                response = client.table("chunks").insert(chunk_data).execute()
-                return response.data is not None
+                # First try to find existing chunk
+                existing = (
+                    client.table("chunks")
+                    .select("id")
+                    .eq("document_id", chunk_data["document_id"])
+                    .eq("chunk_index", chunk_data["chunk_index"])
+                    .execute()
+                )
+
+                if existing.data:
+                    # Chunk exists, update it
+                    response = (
+                        client.table("chunks")
+                        .update(chunk_data)
+                        .eq("id", existing.data[0]["id"])
+                        .execute()
+                    )
+                    return {
+                        "success": True,
+                        "operation": "updated",
+                        "chunk_id": existing.data[0]["id"],
+                    }
+                else:
+                    # Chunk doesn't exist, insert new one
+                    response = client.table("chunks").insert(chunk_data).execute()
+                    if response.data:
+                        return {
+                            "success": True,
+                            "operation": "created",
+                            "chunk_id": response.data[0]["id"],
+                        }
+                    else:
+                        return {
+                            "success": False,
+                            "operation": "failed",
+                            "error": "No data returned",
+                        }
         except Exception as e:
             print(f"Error storing chunk in Supabase: {e}")
-            return False
+            return {"success": False, "operation": "error", "error": str(e)}
 
     def get_document_count(self) -> int:
         """Get the total number of documents stored."""
@@ -124,41 +176,20 @@ class SupabaseStorageBackend(VectorStorage):
 
     def store_embedding(self, chunk_id: str, embedding: List[float]) -> bool:
         """Store a vector embedding for a chunk."""
-        try:
-            # Store in embeddings table
-            embedding_data = {
-                "chunk_id": chunk_id,
-                "embedding": embedding,
-                "created_at": "now()",
-            }
-
-            with SupabaseConnection(use_anon_key=False) as client:
-                response = client.table("embeddings").insert(embedding_data).execute()
-                return response.data is not None
-        except Exception as e:
-            print(f"Error storing embedding in Supabase: {e}")
-            return False
+        # TODO: This method is kept for interface compatibility but embeddings are now stored directly in chunks table
+        # In the next iteration, this will be updated to store embeddings directly in the chunks.embedding column
+        raise NotImplementedError(
+            "Embedding storage will be implemented in next iteration"
+        )
 
     def similarity_search(
         self, query_embedding: List[float], limit: int = 10
     ) -> List[Dict[str, Any]]:
         """Search for similar chunks using vector similarity."""
-        try:
-            # Use vector similarity search
-            with SupabaseConnection(use_anon_key=False) as client:
-                response = client.rpc(
-                    "match_embeddings",
-                    {
-                        "query_embedding": query_embedding,
-                        "match_threshold": 0.7,
-                        "match_count": limit,
-                    },
-                ).execute()
-
-                return response.data or []
-        except Exception as e:
-            print(f"Error in vector similarity search: {e}")
-            return []
+        # TODO: Implement when match_chunks RPC is added in next iteration
+        raise NotImplementedError(
+            "Vector similarity search not yet implemented - RPC match_chunks needs to be added"
+        )
 
     def get_client(self):
         """Get the underlying Supabase client for direct access."""

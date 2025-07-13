@@ -25,9 +25,9 @@ class IngestionPipeline:
         document_metadata = self._create_document_metadata(file_path, content)
         document_id = self._store_document(document_metadata)
         chunks = self._create_chunks(content, document_metadata)
-        stored_chunks = self._store_chunks(chunks, document_id)
+        store_result = self._store_chunks(chunks, document_id)
         return self._create_ingestion_result(
-            file_path, document_id, stored_chunks, chunks
+            file_path, document_id, store_result["chunks"], chunks, store_result
         )
 
     def _store_document(self, document_metadata: Dict[str, Any]) -> str:
@@ -40,14 +40,27 @@ class IngestionPipeline:
         """Create chunks from content using the configured strategy."""
         return self.chunking_strategy.chunk(content, document_metadata)
 
-    def _store_chunks(self, chunks: List[Chunk], document_id: str) -> List[Chunk]:
-        """Store chunks and return successfully stored ones."""
+    def _store_chunks(self, chunks: List[Chunk], document_id: str) -> Dict[str, Any]:
+        """Store chunks and return operation results."""
         stored_chunks = []
+        created_count = 0
+        updated_count = 0
+
         for chunk in chunks:
             chunk.metadata["document_id"] = document_id
-            if self.storage_backend.store_chunk(chunk):
+            result = self.storage_backend.store_chunk(chunk)
+            if result["success"]:
                 stored_chunks.append(chunk)
-        return stored_chunks
+                if result["operation"] == "created":
+                    created_count += 1
+                elif result["operation"] == "updated":
+                    updated_count += 1
+
+        return {
+            "chunks": stored_chunks,
+            "created_count": created_count,
+            "updated_count": updated_count,
+        }
 
     def _create_ingestion_result(
         self,
@@ -55,12 +68,14 @@ class IngestionPipeline:
         document_id: str,
         stored_chunks: List[Chunk],
         total_chunks: List[Chunk],
+        store_result: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Create the result summary for the ingestion process."""
         return {
             "document_id": document_id,
             "filename": file_path.name,
-            "chunks_created": len(stored_chunks),
+            "chunks_created": store_result["created_count"],
+            "chunks_updated": store_result["updated_count"],
             "total_chunks": len(total_chunks),
         }
 

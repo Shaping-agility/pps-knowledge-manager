@@ -20,8 +20,8 @@ class StorageBackend(ABC):
         pass
 
     @abstractmethod
-    def store_chunk(self, chunk: Chunk) -> bool:
-        """Store a chunk in the backend."""
+    def store_chunk(self, chunk: Chunk) -> Dict[str, Any]:
+        """Store a chunk in the backend and return operation result."""
         pass
 
     @abstractmethod

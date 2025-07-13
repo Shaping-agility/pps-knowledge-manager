@@ -49,6 +49,9 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+markers = [
+    "deep_cycle: marks tests as requiring database reset (deselect with '-m \"not deep_cycle\"')"
+]
 
 [tool.mypy]
 python_version = "3.8"

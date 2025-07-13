@@ -37,8 +37,17 @@ pip install -r requirements-dev.txt
 
 Run tests:
 ```bash
+# Regular tests (preserves database state)
 pytest
+
+# Deep cycle tests (resets database)
+DEEP_TEST_CYCLE=1 pytest
+
+# Run all tests including deep cycle
+DEEP_TEST_CYCLE=1 pytest tests/
 ```
+
+For more testing options, see [docs/testing.md](docs/testing.md).
 
 ## Project Structure
 

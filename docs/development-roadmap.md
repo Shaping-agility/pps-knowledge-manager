@@ -68,30 +68,36 @@ This roadmap outlines the iterative development approach for the PPS Knowledge M
 - Identify metadata requirements for knowledge retrieval
 - Establish baseline chunking quality for comparison with semantic approaches
 
-## Iteration 2b: Baseline Hardening (Planned)
+## Iteration 2b: Baseline Hardening ✅ COMPLETED
 **Goal**: Solidify vector-ingest foundation by enforcing security, idempotency, and code cleanup before enabling embeddings.
 
-### Tasks
-1. **Security Baseline**
-   - Enable Row-Level-Security (RLS) on `documents` and `chunks` tables
-   - Add `security.sql` with minimal policies (anon read-only, service_role full access)
-2. **Environment Hygiene**
-   - Remove Docker exec anon-key retrieval logic
+### Completed Tasks
+1. **Security Baseline** ✅
+   - Enabled Row-Level-Security (RLS) on `documents` and `chunks` tables
+   - Added `security.sql` with minimal policies (anon read-only, service_role full access)
+2. **Environment Hygiene** ✅
+   - Removed Docker exec anon-key retrieval logic
    - Rely exclusively on `.env` variables (`SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_ANON_KEY`)
-3. **Idempotent Writes**
-   - Implement `ON CONFLICT` upsert logic for `documents` (`file_path`) and `chunks` (`document_id, chunk_index`)
-4. **Code Cleanup**
-   - Delete obsolete `store_embedding()` helper and stale RPC calls
-   - Merge embedding persistence into `store_chunk()`
-5. **Smoke & Retry Tests**
-   - Add duplication test ensuring re-ingest does not duplicate rows
-   - Verify `idx_chunks_embedding` index exists after reset
+3. **Idempotent Writes** ✅
+   - Implemented explicit check-then-insert/update logic for `documents` (`file_path`) and `chunks` (`document_id, chunk_index`)
+   - Updated ingestion pipeline to track created vs updated chunks
+4. **Code Cleanup** ✅
+   - Deleted obsolete `store_embedding()` helper and stale RPC calls
+   - Merged embedding persistence into `store_chunk()` interface
+5. **Smoke & Retry Tests** ✅
+   - Added duplication tests ensuring re-ingest does not duplicate rows
+   - Enhanced smoke tests to verify `idx_chunks_embedding` index exists after reset
+6. **Deep Cycle Testing** ✅
+   - Implemented conditional test execution with `deep_cycle` marker
+   - Tests skip by default to preserve manual inspection data
+   - Can be enabled via `DEEP_TEST_CYCLE=1` environment variable
 
-### Success Criteria
-- [ ] RLS policies active and enforced
-- [ ] Insertion retries are idempotent
-- [ ] Docker-specific auth code removed
-- [ ] All new tests pass
+### Success Criteria ✅ ALL COMPLETED
+- [x] RLS policies active and enforced
+- [x] Insertion retries are idempotent
+- [x] Docker-specific auth code removed
+- [x] All new tests pass
+- [x] Deep cycle testing infrastructure operational
 
 ## Iteration 3: n8n Integration
 **Goal**: Connect knowledge store to existing n8n chatbot for RAG testing
@@ -195,8 +201,8 @@ This roadmap outlines the iterative development approach for the PPS Knowledge M
 - Identify best practices for agent knowledge integration
 
 ## Current Status
-- **Current Iteration**: 2b - Baseline Hardening
-- **Previous Iteration**: ✅ 2 - Basic Vector Ingest (COMPLETED)
+- **Current Iteration**: 3 - Embedding Enrichment
+- **Previous Iteration**: ✅ 2b - Baseline Hardening (COMPLETED)
 - **Next Milestone**: Embedding enrichment – compute and store OpenAI embeddings
 - **Current Blocker**: None - Foundation complete and ready for next phase
 - **Recent Progress**: 

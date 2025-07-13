@@ -1,5 +1,4 @@
 import os
-import subprocess
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -10,41 +9,17 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")  # Service role key
 
 
-def get_supabase_anon_key() -> str | None:
-    """Get the anon key from local Supabase Kong container."""
-    try:
-        result = subprocess.run(
-            ["docker", "exec", "supabase-kong", "env"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        for line in result.stdout.split("\n"):
-            if line.startswith("SUPABASE_ANON_KEY="):
-                return line.split("=", 1)[1]
-    except Exception as e:
-        print(f"Failed to get anon key from Kong container: {e}")
-    return None
-
-
 def get_supabase_client(use_anon_key: bool = False) -> Client:
     """Get a Supabase client instance with schema support. Use as context manager for proper resource management."""
     if not SUPABASE_URL:
         raise ValueError("Supabase URL is not set in environment variables.")
 
     if use_anon_key:
-        # For local development, get anon key from Kong container
-        if "localhost" in SUPABASE_URL:
-            anon_key = get_supabase_anon_key()
-            if not anon_key:
-                raise ValueError("Could not retrieve anon key from local Supabase")
-            return create_client(SUPABASE_URL, anon_key)
-        else:
-            # For cloud, we'd need SUPABASE_ANON_KEY env var
-            anon_key = os.getenv("SUPABASE_ANON_KEY")
-            if not anon_key:
-                raise ValueError("SUPABASE_ANON_KEY is required for anon operations")
-            return create_client(SUPABASE_URL, anon_key)
+        # Get anon key from environment variables
+        anon_key = os.getenv("SUPABASE_ANON_KEY")
+        if not anon_key:
+            raise ValueError("SUPABASE_ANON_KEY is required for anon operations")
+        return create_client(SUPABASE_URL, anon_key)
     else:
         # Use service role key
         if not SUPABASE_KEY:
