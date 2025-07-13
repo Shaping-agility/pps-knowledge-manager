@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import List, Optional
 from dotenv import load_dotenv
 from ..core.knowledge_manager import KnowledgeManager
+from .sql_parser import parse_postgresql_script
 
 
 # Load environment variables
@@ -71,6 +72,7 @@ class SupabaseTestDataManager:
                 "data/DDL/dropEntities.sql",
                 "data/DDL/rolemanagement.sql",
                 "data/DDL/tables.sql",
+                "data/DDL/vector_search.sql",
                 "data/DDL/security.sql",
             ]
             success = self.run_script_sequence(script_paths)
@@ -90,51 +92,35 @@ class SupabaseTestDataManager:
             return False
 
     def execute_script(self, script_path: str) -> bool:
-        """Execute script using direct PostgreSQL connection (legacy method)."""
+        """Execute script using direct PostgreSQL connection with robust SQL parsing."""
         try:
             script_file = Path(script_path)
             if not script_file.exists():
                 print(f"Script file not found: {script_path}")
                 return False
             print(f"Executing script: {script_path}")
+
             with open(script_file, "r") as f:
                 script_content = f.read()
+
+            # Use the robust PostgreSQL script parser
+            statements = parse_postgresql_script(script_content)
+
             conn = self._get_admin_connection("postgres")
-            # Parse SQL statements more intelligently
-            statements = []
-
-            # Remove comment lines and inline comments, normalize whitespace
-            lines = []
-            for line in script_content.split("\n"):
-                line = line.strip()
-                if line and not line.startswith("--"):
-                    # Remove inline comments (everything after --)
-                    if "--" in line:
-                        line = line.split("--")[0].strip()
-                    if line:  # Only add non-empty lines after comment removal
-                        lines.append(line)
-
-            # Join all lines and split by semicolon
-            full_content = " ".join(lines)
-            raw_statements = [
-                stmt.strip() for stmt in full_content.split(";") if stmt.strip()
-            ]
-
-            # Add semicolon back to each statement
-            statements = [stmt + ";" for stmt in raw_statements]
 
             with conn.cursor() as cursor:
-                for statement in statements:
-                    print(f"Processing Statement: {statement[:100]}...")
+                for i, statement in enumerate(statements):
+                    print(f"Processing Statement {i+1}: {statement[:100]}...")
                     try:
                         cursor.execute(statement)
-                        print(f"Executed: {statement[:50]}...")
+                        print(f"Executed Statement {i+1}: {statement[:50]}...")
                     except Exception as e:
-                        print(f"Failed to execute statement: {statement}")
+                        print(f"Failed to execute statement {i+1}: {statement}")
                         print(f"Error: {e}")
                         conn.rollback()
                         conn.close()
                         return False
+
             conn.commit()
             conn.close()
             print(f"Script executed successfully: {script_path}")

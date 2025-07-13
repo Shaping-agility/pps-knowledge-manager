@@ -13,5 +13,8 @@ DROP INDEX IF EXISTS idx_documents_file_path;
 DROP TABLE IF EXISTS chunks CASCADE;
 DROP TABLE IF EXISTS documents CASCADE;
 
+-- Drop functions that depend on vector extension
+DROP FUNCTION IF EXISTS match_chunks(VECTOR, FLOAT, INTEGER);
+
 -- Drop extensions last
 DROP EXTENSION IF EXISTS vector; 
