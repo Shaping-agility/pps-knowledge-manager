@@ -99,32 +99,44 @@ This roadmap outlines the iterative development approach for the PPS Knowledge M
 - [x] All new tests pass
 - [x] Deep cycle testing infrastructure operational
 
-## Iteration 3: n8n Integration
-**Goal**: Connect knowledge store to existing n8n chatbot for RAG testing
+## Iteration 3: Richer Ingestion (Current)
+**Goal**: Deepen text handling and onboard the first non-TXT format while keeping scope contained.
 
-### Tasks
-1. **API Development**
-   - Create REST API endpoints for knowledge retrieval
-   - Implement basic RAG query interface
-   - Add authentication and rate limiting
+### Tracks & Tasks
+1. **Semantic Chunking (Option A – Sentence Transformers)**
+   - Integrate `sentence-transformers` (all-MiniLM-L6-v2) for semantic boundary detection
+   - Implement `semantic` splitter alongside existing standard splitter
+   - Extend config so each `file_type` can declare `chunking: semantic|standard`
 
-2. **n8n Integration**
-   - Update n8n chatbot to use new knowledge store
-   - Test RAG functionality with sample queries
-   - Compare performance with previous implementation
+2. **PDF (Text-only) Ingestion**
+   - Use `pypdf` to extract page-level text
+   - Re-use existing splitter pipeline; attach metadata: `page_number`, `source_type: pdf`
+   - Gracefully skip image-only PDFs (emit warning, no failure)
+
+3. **Enrichment Metrics**
+   - Detect language with `langdetect` → store `lang` in `documents`
+   - Compute `word_count`, `reading_minutes` and persist to metadata
+
+4. **Test & Fixture Updates**
+   - Add unit tests for semantic splitter selection via config
+   - Add functional tests for PDF ingestion path
+   - Register pytest marks in `pytest.ini` (header switched to `[pytest]`)
 
 ### Success Criteria
-- [ ] n8n chatbot successfully queries knowledge store
-- [ ] RAG responses are relevant and accurate
-- [ ] Performance meets or exceeds previous implementation
-- [ ] API is stable and well-documented
+- [ ] Semantic chunking operational and selectable via config
+- [ ] PDF files ingested with correct page-level metadata
+- [ ] Language + doc-level metrics stored
+- [ ] All new tests pass without DB reset per test
 
 ### Learning Goals
-- Understand RAG performance characteristics
-- Identify optimal query patterns
-- Learn from n8n integration challenges
+- Evaluate quality/latency trade-offs of semantic chunking
+- Understand PDF text extraction quirks and limitations
+- Establish metadata groundwork for future retrieval tuning
 
-## Iteration 4: Semantic Chunking Enhancement
+---
+
+## Iteration 4: Semantic Search Hardening
+*(formerly Iteration 4, renumbered)*
 **Goal**: Implement sentence transformers and semantic chunking strategies
 
 ### Tasks

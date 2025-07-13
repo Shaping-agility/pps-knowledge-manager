@@ -18,18 +18,18 @@ A flexible, multi-modal knowledge management system that serves as the cognitive
 
 ## Knowledge Types & Processing Requirements
 
-### Phase 1 (Current Focus)
-- Text files (transcripts) with LDA chunking
-- Structured markdown documents from Obsidian vault
-- Business and methodology IP as primary content
+Below is an evergreen snapshot of the high-level roadmap.  For sprint-level detail (tasks, success criteria, status) **see `docs/development-roadmap.md`.**
 
-### Phase 2 (Future Expansion)
-- PDF files with source reference preservation
-- DOCx files with metadata extraction
-- PowerPoint files with slide-level chunking
-- Images with OCR and visual content analysis
-- Web scraping capabilities
-- Hybrid search returning source references
+| Phase | Theme                              | Status |
+|-------|------------------------------------|--------|
+| 1     | TXT with standard splitter         | ✅ Completed |
+| 2     | Semantic TXT + Markdown            | 🔄 In progress |
+| 3     | PDF text ingestion + doc metrics   | ⏭️ Planned |
+| 4+    | DOCX / PPTX / OCR images / Hybrid  | 🚧 Future |
+
+---
+
+(Architectural principles, configuration approach, and layer descriptions remain below; they are considered stable and should rarely change.)
 
 ## Storage Configuration Approach
 The system supports declarative configuration for storage strategies:
@@ -216,50 +216,4 @@ DROP EXTENSION IF EXISTS vector;
 - ✅ **Lambda-Ready Architecture**: Stateless patterns implemented for cloud deployment
 - ✅ **Robust DDL/Test Infrastructure**: DDL/test manager supports complex SQL and comments
 - ✅ **Security Baseline**: RLS policies and environment hygiene implemented
-- ✅ **Idempotent Operations**: Storage operations handle retries gracefully
-
-## Success Criteria & Milestones
-
-### Phase 1 Success ✅ COMPLETED
-- [x] Local Supabase container operational
-- [x] Test infrastructure with automated reset process
-- [x] Basic configuration-driven processing
-- [x] SupabaseStorageBackend integrated with KnowledgeManager
-- [x] Health check system operational
-- [x] All tests passing with simplified architecture
-- [x] Lambda-ready architecture patterns implemented
-- [x] Robust DDL/test infrastructure for schema evolution
-
-### Phase 2 Success ✅ COMPLETED
-- [x] Vector ingest of sample ideation session with LDA chunking
-- [x] Idempotent storage operations for Lambda compatibility
-- [x] Security baseline with RLS policies implemented
-- [x] Environment hygiene (Docker exec removal) completed
-- [x] Deep cycle testing infrastructure operational
-
-### Phase 2b Success ✅ COMPLETED
-- [x] Layered test architecture with session-scoped fixtures
-- [x] Incremental count strategy for data isolation
-- [x] Intent-based test marking (primary/coverage/deep_cycle)
-- [x] Order-independent test execution
-- [x] Embedding enrichment and vector similarity search
-- [x] Global test timeout protection (30s default)
-
-### Phase 3 Success (Next)
-- [ ] n8n chatbot integration for RAG testing
-- [ ] Topic analysis with LDA and other algorithms
-- [ ] Graph ingest with PPS Schema extensions
-- [ ] API development for external integrations
-
-### Phase 4 Success
-- [ ] Agent tool selection based on knowledge type
-- [ ] Hybrid search capabilities
-- [ ] Multi-format file processing (PDF, DOCx, PPT)
-- [ ] Source reference preservation and retrieval
-- [ ] Batch processing optimization for Lambda throughput
-
-### Phase 5 Success
-- [ ] Advanced RAG strategies (GraphRAG, reranking)
-- [ ] Production deployment patterns
-- [ ] Performance optimization and scaling
-- [ ] AWS Lambda deployment with production infrastructure 
+- ✅ **Idempotent Operations**: Storage operations handle retries gracefully 

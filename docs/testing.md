@@ -164,11 +164,12 @@ pytest -m phase_retrieval -q
 
 ### Best Practices
 
-1. **Order Independence**: Tests should not depend on execution order
-2. **Parallel Safety**: Tests should be safe to run in parallel
-3. **Fast Feedback**: Primary tests should complete quickly
-4. **Clear Intent**: Test names and marks should clearly communicate purpose
-5. **Incremental Validation**: Use count-based validation rather than absolute state
+1. **Document-Specific Validation**: When verifying ingestion results, assert counts scoped to the specific document (e.g. by `file_path`), never rely on global row counts.  This prevents brittle tests and avoids lazy database resets.
+2. **Order Independence**: Tests should not depend on execution order
+3. **Parallel Safety**: Tests should be safe to run in parallel
+4. **Fast Feedback**: Primary tests should complete quickly
+5. **Clear Intent**: Test names and marks should clearly communicate purpose
+6. **Incremental Validation**: Use count-based validation rather than absolute state
 
 ## CI/CD Integration
 
