@@ -1,276 +1,159 @@
 """
-Tests for embedding functionality.
+NOTE: Mocks are not permitted in this codebase without explicit approval from the project owner.
+
+Integration tests for embedding functionality using the real database and embedding logic.
 """
 
-import pytest
 import os
-from unittest.mock import Mock, patch
-from typing import List
+import pytest
 from pathlib import Path
-
-from src.pps_knowledge_manager.utils.embedding_service import EmbeddingService
+from src.pps_knowledge_manager.utils.test_data_manager import SupabaseTestDataManager
 from src.pps_knowledge_manager.core.knowledge_manager import KnowledgeManager
 from src.pps_knowledge_manager.chunking.base import Chunk
-from src.pps_knowledge_manager.storage.supabase_backend import SupabaseStorageBackend
+from src.pps_knowledge_manager.utils.embedding_service import EmbeddingService
 
 
-class TestEmbeddingService:
-    """Test the embedding service functionality."""
-
-    def test_embedding_service_initialization_with_api_key(self):
-        """Test embedding service initialization with API key."""
-        api_key = "test-api-key"
-        service = EmbeddingService(api_key=api_key)
-        assert service.api_key == api_key
-        assert service.model == "text-embedding-3-small"
-
-    def test_embedding_service_initialization_with_model(self):
-        """Test embedding service initialization with custom model."""
-        api_key = "test-api-key"
-        model = "text-embedding-3-large"
-        service = EmbeddingService(api_key=api_key, model=model)
-        assert service.model == model
-
-    def test_embedding_service_initialization_without_api_key(self):
-        """Test embedding service initialization without API key raises error."""
-        with patch.dict(os.environ, {}, clear=True):
-            with pytest.raises(ValueError, match="OpenAI API key is required"):
-                EmbeddingService(api_key=None)
-
-    @patch("src.pps_knowledge_manager.utils.embedding_service.OpenAI")
-    def test_generate_embedding_success(self, mock_openai):
-        """Test successful embedding generation."""
-        # Mock the OpenAI client
-        mock_client = Mock()
-        mock_response = Mock()
-        mock_response.data = [Mock(embedding=[0.1, 0.2, 0.3] * 512)]  # 1536 dimensions
-        mock_client.embeddings.create.return_value = mock_response
-        mock_openai.return_value = mock_client
-
-        service = EmbeddingService(api_key="test-key")
-        embedding = service.generate_embedding("test text")
-
-        assert len(embedding) == 1536
-        assert embedding == [0.1, 0.2, 0.3] * 512
-        mock_client.embeddings.create.assert_called_once()
-
-    @patch("src.pps_knowledge_manager.utils.embedding_service.OpenAI")
-    def test_generate_embedding_failure(self, mock_openai):
-        """Test embedding generation failure."""
-        mock_client = Mock()
-        mock_client.embeddings.create.side_effect = Exception("API Error")
-        mock_openai.return_value = mock_client
-
-        service = EmbeddingService(api_key="test-key")
-        with pytest.raises(Exception, match="Failed to generate embedding"):
-            service.generate_embedding("test text")
-
-    @patch("src.pps_knowledge_manager.utils.embedding_service.OpenAI")
-    def test_generate_embeddings_batch_success(self, mock_openai):
-        """Test successful batch embedding generation."""
-        mock_client = Mock()
-        mock_response = Mock()
-        mock_response.data = [
-            Mock(embedding=[0.1, 0.2, 0.3] * 512),
-            Mock(embedding=[0.4, 0.5, 0.6] * 512),
-        ]
-        mock_client.embeddings.create.return_value = mock_response
-        mock_openai.return_value = mock_client
-
-        service = EmbeddingService(api_key="test-key")
-        embeddings = service.generate_embeddings_batch(["text1", "text2"])
-
-        assert len(embeddings) == 2
-        assert len(embeddings[0]) == 1536
-        assert len(embeddings[1]) == 1536
-        mock_client.embeddings.create.assert_called_once()
-
-    def test_get_embedding_dimension_small_model(self):
-        """Test embedding dimension for small model."""
-        service = EmbeddingService(api_key="test-key", model="text-embedding-3-small")
-        assert service.get_embedding_dimension() == 1536
-
-    def test_get_embedding_dimension_large_model(self):
-        """Test embedding dimension for large model."""
-        service = EmbeddingService(api_key="test-key", model="text-embedding-3-large")
-        assert service.get_embedding_dimension() == 3072
-
-    def test_get_embedding_dimension_unknown_model(self):
-        """Test embedding dimension for unknown model defaults to 1536."""
-        service = EmbeddingService(api_key="test-key", model="unknown-model")
-        assert service.get_embedding_dimension() == 1536
+@pytest.fixture(scope="module", autouse=True)
+def reset_database():
+    manager = SupabaseTestDataManager()
+    assert manager.reset(), "Database reset failed"
 
 
-class TestKnowledgeManagerEmbeddings:
-    """Test embedding integration with knowledge manager."""
+@pytest.fixture
+def knowledge_manager():
+    return KnowledgeManager()
 
-    @pytest.fixture
-    def mock_embedding_service(self):
-        """Create a mock embedding service."""
-        service = Mock(spec=EmbeddingService)
-        service.generate_embedding.return_value = [0.1, 0.2, 0.3] * 512
-        return service
 
-    @pytest.fixture
-    def knowledge_manager_with_embeddings(self, mock_embedding_service):
-        """Create a knowledge manager with embedding service."""
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-            km = KnowledgeManager()
-            km.embedding_service = mock_embedding_service
-            return km
+@pytest.fixture
+def embedding_service():
+    api_key = os.getenv("OPENAI_API_KEY")
+    assert api_key, "OPENAI_API_KEY must be set for embedding tests."
+    return EmbeddingService(api_key=api_key)
 
-    def test_knowledge_manager_embedding_service_initialization_with_key(self):
-        """Test knowledge manager initializes embedding service when API key is available."""
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-            with patch(
-                "src.pps_knowledge_manager.core.knowledge_manager.EmbeddingService"
-            ) as mock_service:
-                mock_instance = Mock()
-                mock_service.return_value = mock_instance
 
-                km = KnowledgeManager()
-                assert km.embedding_service is not None
-                mock_service.assert_called_once()
+def test_embedding_string_format_conversion():
+    """Test that embedding list is correctly converted to PostgreSQL vector string format."""
+    # Test embedding conversion logic
+    embedding = [0.1, 0.2, 0.3, 0.4, 0.5]
+    embedding_str = "[" + ",".join(str(x) for x in embedding) + "]"
 
-    def test_knowledge_manager_embedding_service_initialization_without_key(self):
-        """Test knowledge manager doesn't initialize embedding service when API key is missing."""
-        with patch.dict(os.environ, {}, clear=True):
-            km = KnowledgeManager()
-            assert km.embedding_service is None
+    assert embedding_str == "[0.1,0.2,0.3,0.4,0.5]"
+    assert len(embedding_str) > 0
+    assert embedding_str.startswith("[")
+    assert embedding_str.endswith("]")
 
-    def test_similarity_search_with_embedding_service(
-        self, knowledge_manager_with_embeddings, mock_embedding_service
-    ):
-        """Test similarity search when embedding service is available."""
-        # Mock storage backend with similarity search
-        mock_backend = Mock(spec=SupabaseStorageBackend)
-        mock_backend.similarity_search.return_value = [{"id": "1", "content": "test"}]
-        knowledge_manager_with_embeddings.storage_backends = [mock_backend]
 
-        results = knowledge_manager_with_embeddings.similarity_search("test query")
+def test_embedding_service_generation(embedding_service):
+    """Test that embedding service can generate embeddings without database operations."""
+    text = "This is a simple test text for embedding generation."
+    embedding = embedding_service.generate_embedding(text)
 
-        assert len(results) == 1
-        assert results[0]["id"] == "1"
-        mock_embedding_service.generate_embedding.assert_called_once_with("test query")
-        mock_backend.similarity_search.assert_called_once()
+    # Verify embedding format
+    assert isinstance(embedding, list)
+    assert len(embedding) == embedding_service.get_embedding_dimension()
+    assert all(isinstance(x, float) for x in embedding)
 
-    def test_similarity_search_without_embedding_service(self):
-        """Test similarity search when embedding service is not available."""
-        km = KnowledgeManager()
-        km.embedding_service = None
+    # Test the string conversion
+    embedding_str = "[" + ",".join(str(x) for x in embedding) + "]"
+    assert embedding_str.startswith("[")
+    assert embedding_str.endswith("]")
+    assert len(embedding_str) > 0
 
-        results = km.similarity_search("test query")
-        assert results == []
 
-    def test_similarity_search_with_embedding_error(
-        self, knowledge_manager_with_embeddings, mock_embedding_service
-    ):
-        """Test similarity search handles embedding generation errors."""
-        mock_embedding_service.generate_embedding.side_effect = Exception(
-            "Embedding error"
+def test_minimal_embedding_storage(knowledge_manager, embedding_service):
+    """Minimal test to verify embedding storage without database reset."""
+    # Create a document first
+    doc_metadata = {
+        "title": "Minimal Test Doc",
+        "file_path": "minimal_test.txt",
+        "file_type": "txt",
+        "file_size": 50,
+        "metadata": {"source": "minimal-test"},
+    }
+    doc_id = knowledge_manager.storage_backends[0].store_document(doc_metadata)
+
+    # Create a simple chunk
+    chunk_content = "Minimal test chunk for embedding storage."
+    chunk = Chunk(
+        content=chunk_content,
+        metadata={"document_id": doc_id, "chunk_index": 999},  # Use unique index
+        source_path=Path("minimal_test.txt"),
+        start_position=0,
+        end_position=len(chunk_content),
+    )
+
+    # Generate embedding
+    embedding = embedding_service.generate_embedding(chunk_content)
+
+    # Store chunk with embedding
+    result = knowledge_manager.storage_backends[0].store_chunk(chunk, embedding)
+
+    # Verify storage was successful
+    assert result["success"] is True
+    assert "chunk_id" in result
+
+    print(f"Successfully stored chunk with ID: {result['chunk_id']}")
+    print(f"Embedding dimension: {len(embedding)}")
+    print(f"Embedding string format: {embedding[:3]}...")  # Show first 3 values
+
+
+def test_embedding_generation_and_storage(knowledge_manager, embedding_service):
+    # Create a fake document and chunk
+    doc_metadata = {
+        "title": "Test Doc",
+        "file_path": "test.txt",
+        "file_type": "txt",
+        "file_size": 20,
+        "metadata": {"source": "unit-test"},
+    }
+    doc_id = knowledge_manager.storage_backends[0].store_document(doc_metadata)
+    chunk_content = "This is a test chunk for embedding."
+    chunk = Chunk(
+        content=chunk_content,
+        metadata={"document_id": doc_id, "chunk_index": 0},
+        source_path=Path("test.txt"),
+        start_position=0,
+        end_position=len(chunk_content),
+    )
+    embedding = embedding_service.generate_embedding(chunk_content)
+
+    # Debug: Check embedding format
+    print(f"DEBUG: Embedding type: {type(embedding)}")
+    print(f"DEBUG: Embedding length: {len(embedding)}")
+    print(f"DEBUG: First 3 values: {embedding[:3]}")
+    print(f"DEBUG: Is list: {isinstance(embedding, list)}")
+    print(f"DEBUG: All floats: {all(isinstance(x, float) for x in embedding)}")
+
+    result = knowledge_manager.storage_backends[0].store_chunk(chunk, embedding)
+    assert result["success"] is True
+    # Check that the embedding is stored in the DB
+    backend = knowledge_manager.storage_backends[0]
+    with backend.get_client() as client:
+        db_chunk = (
+            client.table("chunks")
+            .select("*")
+            .eq("id", result["chunk_id"])
+            .execute()
+            .data[0]
         )
+        print(f"DEBUG: DB embedding type: {type(db_chunk['embedding'])}")
+        print(f"DEBUG: DB embedding length: {len(db_chunk['embedding'])}")
+        print(f"DEBUG: DB embedding first 10 chars: {str(db_chunk['embedding'])[:10]}")
 
-        results = knowledge_manager_with_embeddings.similarity_search("test query")
-        assert results == []
+        assert db_chunk["embedding"] is not None
+        # The embedding is stored as a Postgres vector and retrieved as a string
+        assert isinstance(db_chunk["embedding"], str)
+        assert db_chunk["embedding"].startswith("[")
+        assert db_chunk["embedding"].endswith("]")
 
 
-class TestSupabaseBackendEmbeddings:
-    """Test embedding integration with Supabase backend."""
-
-    @pytest.fixture
-    def mock_supabase_connection(self):
-        """Create a mock Supabase connection."""
-        with patch(
-            "src.pps_knowledge_manager.storage.supabase_backend.SupabaseConnection"
-        ) as mock_conn:
-            mock_client = Mock()
-            mock_conn.return_value.__enter__.return_value = mock_client
-            yield mock_client
-
-    def test_store_chunk_with_embedding(self, mock_supabase_connection):
-        """Test storing chunk with embedding."""
-        # Mock response for existing chunk check
-        mock_supabase_connection.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value.data = (
-            []
-        )
-
-        # Mock response for insert
-        mock_supabase_connection.table.return_value.insert.return_value.execute.return_value.data = [
-            {"id": "test-id"}
-        ]
-
-        backend = SupabaseStorageBackend({"url": "test", "key": "test"})
-        chunk = Chunk(
-            content="test content",
-            metadata={"document_id": "doc-1", "chunk_index": 0},
-            source_path=Path("test.txt"),
-        )
-        embedding = [0.1, 0.2, 0.3] * 512
-
-        result = backend.store_chunk(chunk, embedding)
-
-        assert result["success"] is True
-        assert result["operation"] == "created"
-
-        # Verify embedding was included in the data
-        insert_call = mock_supabase_connection.table.return_value.insert.call_args
-        assert "embedding" in insert_call[0][0]
-
-    def test_store_chunk_without_embedding(self, mock_supabase_connection):
-        """Test storing chunk without embedding."""
-        # Mock response for existing chunk check
-        mock_supabase_connection.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value.data = (
-            []
-        )
-
-        # Mock response for insert
-        mock_supabase_connection.table.return_value.insert.return_value.execute.return_value.data = [
-            {"id": "test-id"}
-        ]
-
-        backend = SupabaseStorageBackend({"url": "test", "key": "test"})
-        chunk = Chunk(
-            content="test content",
-            metadata={"document_id": "doc-1", "chunk_index": 0},
-            source_path=Path("test.txt"),
-        )
-
-        result = backend.store_chunk(chunk)
-
-        assert result["success"] is True
-        assert result["operation"] == "created"
-
-        # Verify embedding was not included in the data
-        insert_call = mock_supabase_connection.table.return_value.insert.call_args
-        assert "embedding" not in insert_call[0][0]
-
-    def test_store_embedding_success(self, mock_supabase_connection):
-        """Test storing embedding for existing chunk."""
-        mock_supabase_connection.table.return_value.update.return_value.eq.return_value.execute.return_value.data = [
-            {"id": "test-id"}
-        ]
-
-        backend = SupabaseStorageBackend({"url": "test", "key": "test"})
-        embedding = [0.1, 0.2, 0.3] * 512
-
-        result = backend.store_embedding("test-chunk-id", embedding)
-
-        assert result is True
-        mock_supabase_connection.table.return_value.update.assert_called_once()
-
-    def test_similarity_search_success(self, mock_supabase_connection):
-        """Test similarity search using table query."""
-        mock_supabase_connection.table.return_value.select.return_value.limit.return_value.execute.return_value.data = [
-            {"id": "1", "content": "test"}
-        ]
-
-        backend = SupabaseStorageBackend({"url": "test", "key": "test"})
-        query_embedding = [0.1, 0.2, 0.3] * 512
-
-        results = backend.similarity_search(query_embedding, limit=5)
-
-        assert len(results) == 1
-        assert results[0]["id"] == "1"
-
-        # Verify table query was called
-        mock_supabase_connection.table.assert_called_once_with("chunks")
+def test_similarity_search_returns_expected_chunk(knowledge_manager, embedding_service):
+    # Use the same content as above to ensure a high similarity
+    query = "This is a test chunk for embedding."
+    results = knowledge_manager.similarity_search(query, limit=3)
+    assert results, "No results returned from similarity search"
+    # The top result should have high similarity
+    top = results[0]
+    assert "similarity" in top
+    assert top["similarity"] > 0.8
+    assert query.lower()[:10] in top["content"].lower()

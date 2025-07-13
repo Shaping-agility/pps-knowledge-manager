@@ -72,7 +72,14 @@ class SupabaseStorageBackend(VectorStorage):
 
             # Add embedding if provided
             if embedding is not None:
-                chunk_data["embedding"] = embedding
+                # Ensure embedding is a list of floats
+                if not isinstance(embedding, list) or not all(
+                    isinstance(x, float) for x in embedding
+                ):
+                    raise ValueError("Embedding must be a list of floats.")
+                # Convert to string format that PostgreSQL vector type expects
+                embedding_str = "[" + ",".join(str(x) for x in embedding) + "]"
+                chunk_data["embedding"] = embedding_str
 
             with SupabaseConnection(use_anon_key=False) as client:
                 # First try to find existing chunk
@@ -179,10 +186,12 @@ class SupabaseStorageBackend(VectorStorage):
     def store_embedding(self, chunk_id: str, embedding: List[float]) -> bool:
         """Store a vector embedding for a chunk."""
         try:
+            # Convert to string format that PostgreSQL vector type expects
+            embedding_str = "[" + ",".join(str(x) for x in embedding) + "]"
             with SupabaseConnection(use_anon_key=False) as client:
                 response = (
                     client.table("chunks")
-                    .update({"embedding": embedding})
+                    .update({"embedding": embedding_str})
                     .eq("id", chunk_id)
                     .execute()
                 )
@@ -194,12 +203,17 @@ class SupabaseStorageBackend(VectorStorage):
     def similarity_search(
         self, query_embedding: List[float], limit: int = 10
     ) -> List[Dict[str, Any]]:
-        """Search for similar chunks using vector similarity."""
+        """Search for similar chunks using vector similarity via match_chunks RPC."""
         try:
             with SupabaseConnection(use_anon_key=False) as client:
-                # For now, return all chunks since vector similarity search requires the RPC function
-                # This will be enhanced when the RPC function is properly set up
-                response = client.table("chunks").select("*").limit(limit).execute()
+                response = client.rpc(
+                    "match_chunks",
+                    {
+                        "query_embedding": query_embedding,
+                        "match_threshold": 0.7,
+                        "match_count": limit,
+                    },
+                ).execute()
                 return response.data or []
         except Exception as e:
             print(f"Error performing similarity search in Supabase: {e}")

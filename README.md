@@ -49,6 +49,10 @@ DEEP_TEST_CYCLE=1 pytest tests/
 
 For more testing options, see [docs/testing.md](docs/testing.md).
 
+## Test Timeouts
+
+All tests are auto-terminated after 30 seconds using [pytest-timeout](https://pypi.org/project/pytest-timeout/). This prevents hung tests from blocking CI or local runs. You can override the timeout per test with the `@pytest.mark.timeout(seconds)` marker.
+
 ## Project Structure
 
 ```
