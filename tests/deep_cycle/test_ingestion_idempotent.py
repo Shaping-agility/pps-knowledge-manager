@@ -1,44 +1,76 @@
 """
-Deep cycle tests for ingestion idempotency.
-These tests reset the database and run full ingestion cycles.
+Deep cycle tests for ingestion delete-recreate behavior.
+These tests verify that duplicate document processing uses delete-recreate strategy.
 """
 
 import pytest
 from pathlib import Path
-from src.pps_knowledge_manager.ingestion.pipeline import IngestionPipeline
-from src.pps_knowledge_manager.chunking.langchain_strategy import (
-    LangChainSentenceSplitter,
-)
-from src.pps_knowledge_manager.storage.supabase_backend import SupabaseStorageBackend
-from src.pps_knowledge_manager.utils.test_data_manager import SupabaseTestDataManager
+from src.pps_knowledge_manager.core.knowledge_manager import KnowledgeManager
 
 
 @pytest.mark.deep_cycle
-def test_duplicate_insert_handled():
-    """Test that duplicate document inserts are handled idempotently."""
-    # Reset database for this test
-    manager = SupabaseTestDataManager()
-    assert manager.reset(), "Database reset failed"
-
-    # Create pipeline
-    storage_backend = SupabaseStorageBackend({})
-    chunking_strategy = LangChainSentenceSplitter({"chunk_size": 500})
-    pipeline = IngestionPipeline(storage_backend, chunking_strategy)
-
-    # Test file
+@pytest.mark.primary
+def test_delete_recreate_behavior(ingested_db, knowledge_manager):
+    """Test that duplicate document inserts use delete-recreate strategy."""
+    # Test file path
     test_file = Path("data/raw/ingest_steel_thread.txt")
     if not test_file.exists():
         pytest.skip(f"Test file not found: {test_file}")
 
-    # First ingestion
-    result1 = pipeline.process_file(test_file)
-    assert result1["chunks_created"] > 0
+    # Use relative file path for all queries (matches ingestion logic)
+    file_path = str(test_file)
 
-    # Second ingestion (should be idempotent)
-    result2 = pipeline.process_file(test_file)
-    assert result2["chunks_created"] == 0  # No new chunks created
-    assert result2["chunks_updated"] > 0  # Existing chunks updated
+    # Get initial counts for this specific document
+    storage = knowledge_manager.storage_backends[0]
+    initial_docs = storage.get_document_count_by_path(file_path)
+    initial_chunks = storage.get_chunk_count_by_document_path(file_path)
 
-    # Verify document count didn't increase
-    doc_count = storage_backend.get_document_count()
-    assert doc_count == 1, f"Should have exactly 1 document, got {doc_count}"
+    assert (
+        initial_docs == 1
+    ), f"Should have 1 document for {file_path}, got {initial_docs}"
+    assert (
+        initial_chunks > 0
+    ), f"Should have chunks for {file_path}, got {initial_chunks}"
+
+    # Second ingestion (should delete and recreate)
+    result = knowledge_manager.process_file(test_file)
+    assert result, "Second ingestion should succeed"
+
+    # Verify document count remains the same (delete + recreate)
+    final_docs = storage.get_document_count_by_path(file_path)
+    final_chunks = storage.get_chunk_count_by_document_path(file_path)
+
+    assert (
+        final_docs == 1
+    ), f"Should still have 1 document for {file_path} after delete-recreate, got {final_docs}"
+    assert (
+        final_chunks == initial_chunks
+    ), f"Should have same chunk count for {file_path} after delete-recreate ({initial_chunks} → {final_chunks})"
+
+    # Verify embeddings were created (check a few chunks)
+    from src.pps_knowledge_manager.utils.supabase_client import SupabaseConnection
+
+    with SupabaseConnection(use_anon_key=False) as client:
+        # Get document ID first
+        doc_response = (
+            client.table("documents").select("id").eq("file_path", file_path).execute()
+        )
+        assert doc_response.data, f"Document should exist for {file_path}"
+        document_id = doc_response.data[0]["id"]
+
+        # Get chunks for this document
+        chunks_response = (
+            client.table("chunks").select("*").eq("document_id", document_id).execute()
+        )
+        assert chunks_response.data, f"Should have chunks for document {document_id}"
+
+        # Check that chunks have embeddings
+        for chunk in chunks_response.data[:3]:  # Check first 3 chunks
+            assert (
+                chunk.get("embedding") is not None
+            ), f"Chunk {chunk.get('id')} should have embedding"
+            assert isinstance(
+                chunk["embedding"], str
+            ), f"Embedding should be string format"
+            assert chunk["embedding"].startswith("["), f"Embedding should start with ["
+            assert chunk["embedding"].endswith("]"), f"Embedding should end with ]"

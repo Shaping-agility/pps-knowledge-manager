@@ -48,13 +48,12 @@ class SupabaseStorageBackend(VectorStorage):
     ) -> str:
         """Persist document using delete-recreate logic (delete if exists, then insert fresh)."""
         with SupabaseConnection(use_anon_key=False) as client:
+            # Find existing document by file_path
             existing_document = self._find_existing_document(
                 client, document_data["file_path"]
             )
 
-            if existing_document and self._needs_update(
-                existing_document, document_data
-            ):
+            if existing_document:
                 self._delete_document_and_chunks(existing_document["id"])
 
             return self._insert_new_document(client, document_data)
@@ -64,14 +63,13 @@ class SupabaseStorageBackend(VectorStorage):
     ) -> bool:
         """Determine if document needs to be updated based on metadata comparison.
 
-        Future implementation will check checksum, modification time, file size, etc.
-        For now, always returns True to ensure fresh document creation.
+        For now, only update if file size has changed to avoid unnecessary operations.
         """
-        # TODO: Implement checksum/mtime comparison logic
-        # Example future logic:
-        # return (existing_document.get("checksum") != new_document_data.get("checksum") or
-        #         existing_document.get("file_size") != new_document_data.get("file_size"))
-        return True
+        existing_size = existing_document.get("file_size")
+        new_size = new_document_data.get("file_size")
+
+        # Only update if file size has changed
+        return existing_size != new_size
 
     def _find_existing_document(
         self, client, file_path: str
@@ -172,6 +170,50 @@ class SupabaseStorageBackend(VectorStorage):
                 return len(response.data) if response.data else 0
         except Exception as e:
             print(f"Error getting chunk count: {e}")
+            return 0
+
+    def get_document_count_by_path(self, file_path: str) -> int:
+        """Get the number of documents with the specified file path."""
+        try:
+            with SupabaseConnection(use_anon_key=False) as client:
+                response = (
+                    client.table("documents")
+                    .select("id")
+                    .eq("file_path", file_path)
+                    .execute()
+                )
+                return len(response.data) if response.data else 0
+        except Exception as e:
+            print(f"Error getting document count by path: {e}")
+            return 0
+
+    def get_chunk_count_by_document_path(self, file_path: str) -> int:
+        """Get the number of chunks for documents with the specified file path."""
+        try:
+            with SupabaseConnection(use_anon_key=False) as client:
+                # First get the document ID for the file path
+                doc_response = (
+                    client.table("documents")
+                    .select("id")
+                    .eq("file_path", file_path)
+                    .execute()
+                )
+
+                if not doc_response.data:
+                    return 0
+
+                document_id = doc_response.data[0]["id"]
+
+                # Then count chunks for that document
+                chunk_response = (
+                    client.table("chunks")
+                    .select("id")
+                    .eq("document_id", document_id)
+                    .execute()
+                )
+                return len(chunk_response.data) if chunk_response.data else 0
+        except Exception as e:
+            print(f"Error getting chunk count by document path: {e}")
             return 0
 
     def search(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:

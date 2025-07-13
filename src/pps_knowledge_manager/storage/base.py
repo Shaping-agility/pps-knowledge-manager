@@ -49,6 +49,16 @@ class StorageBackend(ABC):
         """Get the total number of chunks stored."""
         pass
 
+    @abstractmethod
+    def get_document_count_by_path(self, file_path: str) -> int:
+        """Get the number of documents with the specified file path."""
+        pass
+
+    @abstractmethod
+    def get_chunk_count_by_document_path(self, file_path: str) -> int:
+        """Get the number of chunks for documents with the specified file path."""
+        pass
+
 
 class VectorStorage(StorageBackend):
     """Base class for vector storage backends."""

@@ -8,7 +8,6 @@ import psycopg2
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from dotenv import load_dotenv
-from ..core.knowledge_manager import KnowledgeManager
 from .sql_parser import parse_postgresql_script
 
 

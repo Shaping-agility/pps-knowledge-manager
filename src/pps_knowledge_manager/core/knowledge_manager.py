@@ -33,6 +33,8 @@ class KnowledgeManager:
         self._initialize_storage_backends()
         # Initialize embedding service
         self._initialize_embedding_service()
+        # Initialize chunking strategies
+        self._initialize_chunking_strategies()
 
     def _initialize_storage_backends(self):
         """Initialize storage backends based on configuration."""
@@ -75,6 +77,19 @@ class KnowledgeManager:
             except Exception as e:
                 print(f"Failed to initialize embedding service: {e}")
 
+    def _initialize_chunking_strategies(self):
+        """Initialize default chunking strategies."""
+        try:
+            from ..chunking.langchain_strategy import LangChainSentenceSplitter
+
+            # Register LangChain strategy with default config
+            config = {"chunk_size": 1000, "chunk_overlap": 200}
+            langchain_strategy = LangChainSentenceSplitter(config)
+            self.add_chunking_strategy("langchain_sentence", langchain_strategy)
+            print("Initialized LangChain sentence splitting strategy")
+        except Exception as e:
+            print(f"Failed to initialize chunking strategies: {e}")
+
     def add_trigger(self, trigger: Trigger) -> None:
         """Add a trigger to the system."""
         self.triggers.append(trigger)
@@ -110,7 +125,8 @@ class KnowledgeManager:
         metadata = self._create_file_metadata(file_path, strategy)
         chunks = strategy.chunk(content, metadata)
 
-        return self._store_chunks_with_embeddings(chunks)
+        # Create document first, then store chunks with document_id
+        return self._create_document_and_store_chunks(file_path, metadata, chunks)
 
     def _get_chunking_strategy_for_file(
         self, file_path: Path
@@ -132,11 +148,44 @@ class KnowledgeManager:
     ) -> Dict[str, Any]:
         """Create metadata for file processing."""
         return {
+            "title": file_path.name,
+            "file_path": str(file_path),
             "source_path": str(file_path),
             "file_size": file_path.stat().st_size,
             "file_type": file_path.suffix,
             "strategy": strategy.get_strategy_name(),
         }
+
+    def _create_document_and_store_chunks(
+        self, file_path: Path, metadata: Dict[str, Any], chunks: List[Chunk]
+    ) -> bool:
+        """Create document first, then store chunks with document_id."""
+        success = True
+
+        for backend in self.storage_backends:
+            # Create document first
+            document_id = backend.store_document(metadata)
+            if not document_id:
+                success = False
+                continue
+
+            # Update chunk metadata with document_id
+            for chunk in chunks:
+                chunk.metadata["document_id"] = document_id
+
+            # Store chunks with embeddings
+            for chunk in chunks:
+                embedding = self._generate_embedding_for_chunk(chunk)
+
+                if isinstance(backend, SupabaseStorageBackend):
+                    result = backend.store_chunk(chunk, embedding)
+                    if not result.get("success", False):
+                        success = False
+                else:
+                    if not backend.store_chunk(chunk):
+                        success = False
+
+        return success
 
     def _store_chunks_with_embeddings(self, chunks: List[Chunk]) -> bool:
         """Store chunks in all backends with embeddings if available."""
